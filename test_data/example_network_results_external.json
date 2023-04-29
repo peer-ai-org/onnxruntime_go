@@ -1,0 +1,26 @@
+{
+  "latent_model_input": [],
+  "latent_model_input_shape": [
+    1,
+    4,
+    64,
+    64
+  ],
+  "t": [1.0],
+  "t_shape": [
+    1
+  ],
+  "encoder_hidden_states": [],
+  "encoder_hidden_states_shape": [
+    1,
+    77,
+    768
+  ],
+  "noise_pred": [],
+  "noise_pred_shape": [
+    1,
+    4,
+    64,
+    64
+  ]
+}
