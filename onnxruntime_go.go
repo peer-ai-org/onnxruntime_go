@@ -435,7 +435,7 @@ func NewSessionWithPathWithTypeWithCUDA(path string, inputNames,
 		// convert opts[0] from string to int
 		deviceInt, err := strconv.Atoi(opts[0])
 		if err != nil {
-			return nil, fmt.Errorf("Error converting device id to int: %w", err)
+			deviceInt = 0
 		}
 		cudaDeviceId = C.int(deviceInt)
 	}
