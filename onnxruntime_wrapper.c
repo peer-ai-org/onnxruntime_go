@@ -63,7 +63,7 @@ OrtStatus *CreateSessionPathWithCUDA(char *model_path,
   cuda_options.user_compute_stream = NULL;
   cuda_options.default_memory_arena_cfg = NULL;
   status = ort_api->SessionOptionsAppendExecutionProvider_CUDA(options, &cuda_options);
-  // if (status) return status;
+  if (status) return status;
   #ifdef _WIN32_SESSION
   const wchar_t* model_path2 = GetWC(model_path);
   status = ort_api->CreateSession(env, (ORTCHAR_T*)model_path2,
