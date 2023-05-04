@@ -719,9 +719,15 @@ func TestExampleNetwork(t *testing.T) {
 	defer outputTensor.Destroy()
 
 	// Set up and run the session.
-	session, e := NewSession("test_data/example_network.onnx",
+	session, e := NewSessionWithType("test_data/example_network.onnx",
 		[]string{"1x4 Input Vector"}, []string{"1x2 Output Vector"},
-		[]*Tensor[float32]{inputTensor}, []*Tensor[float32]{outputTensor})
+		[]*TensorWithType{{
+			Tensor:     inputTensor,
+			TensorType: "float32",
+		}}, []*TensorWithType{{
+			Tensor:     outputTensor,
+			TensorType: "float32",
+		}})
 	if e != nil {
 		t.Logf("Failed creating session: %s\n", e)
 		t.FailNow()
@@ -741,7 +747,6 @@ func TestExampleNetwork(t *testing.T) {
 
 func TestExampleNetworkWithCUDA(t *testing.T) {
 	InitONNXEnv(true)
-
 	defer func() {
 		e := DestroyEnvironment()
 		if e != nil {
