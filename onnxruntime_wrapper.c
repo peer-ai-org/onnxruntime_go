@@ -54,8 +54,8 @@ OrtStatus *CreateSessionPathWithCUDA(char *model_path,
   if (status) return status;
   OrtCUDAProviderOptions cuda_options;
   cuda_options.device_id = cuda_device_id;
-  cuda_options.arena_extend_strategy = 0; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
-  cuda_options.gpu_mem_limit = 4L * 1024 * 1024 * 1024; // 4GB
+  cuda_options.arena_extend_strategy = 1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
+  cuda_options.gpu_mem_limit = 16L * 1024 * 1024 * 1024; // 16GB
   cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
   cuda_options.do_copy_in_default_stream = 1;
   // cuda_options.cudnn_conv_use_max_workspace = 1;
