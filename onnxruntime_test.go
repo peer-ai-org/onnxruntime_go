@@ -313,6 +313,13 @@ func InitONNXEnv(cuda bool) error {
 // This must be called prior to running each test.
 func TestInitializeRuntime(t *testing.T) {
 	e := InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
 	// if runtime.GOOS == "windows" {
 	// 	SetSharedLibraryPath("test_data/onnxruntime.dll")
 	// } else if runtime.GOOS == "darwin" {
@@ -332,6 +339,13 @@ func TestInitializeRuntime(t *testing.T) {
 }
 func TestInitializeRuntimeCUDA(t *testing.T) {
 	e := InitONNXEnv(true)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
 	// if runtime.GOOS == "windows" {
 	// 	SetSharedLibraryPath("test_data/onnxruntime.dll")
 	// } else if runtime.GOOS == "darwin" {
