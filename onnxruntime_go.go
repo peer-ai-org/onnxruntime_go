@@ -6,6 +6,7 @@ package onnxruntime_go
 
 import (
 	"fmt"
+	"strconv"
 	// "os"
 	"unsafe"
 )
@@ -406,7 +407,7 @@ func NewSessionWithONNXData[IT TensorData, OT TensorData](onnxData []byte, input
 // The same as NewSession, but takes a slice of bytes containing the .onnx
 // network rather than a file path.
 func NewSessionWithPathWithTypeWithCUDA(path string, inputNames,
-	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType) (*Session, error) {
+	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
 	if !IsInitialized() {
 		return nil, NotInitializedError
 	}
@@ -428,7 +429,18 @@ func NewSessionWithPathWithTypeWithCUDA(path string, inputNames,
 	var ortSession *C.OrtSession
 	modelPath := C.CString(path)
 	defer C.free(unsafe.Pointer(modelPath))
-	status := C.CreateSessionPathWithCUDA(modelPath, ortEnv, &ortSession)
+
+	cudaDeviceId := C.int(0)
+	if len(opts) > 0 {
+		// convert opts[0] from string to int
+		deviceInt, err := strconv.Atoi(opts[0])
+		if err != nil {
+			return nil, fmt.Errorf("Error converting device id to int: %w", err)
+		}
+		cudaDeviceId = C.int(deviceInt)
+	}
+
+	status := C.CreateSessionPathWithCUDA(modelPath, ortEnv, &ortSession, cudaDeviceId)
 	if status != nil {
 		return nil, fmt.Errorf("Error creating session: %w",
 			statusToError(status))
@@ -694,9 +706,9 @@ func NewSession[IT TensorData, OT TensorData](onnxFilePath string, inputNames,
 }
 
 func NewSessionWithTypeWithCUDA(onnxFilePath string, inputNames,
-	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType) (*Session, error) {
+	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
 
-	toReturn, e := NewSessionWithPathWithTypeWithCUDA(onnxFilePath, inputNames, outputNames, inputs, outputs)
+	toReturn, e := NewSessionWithPathWithTypeWithCUDA(onnxFilePath, inputNames, outputNames, inputs, outputs, opts...)
 	// fileContent, e := os.ReadFile(onnxFilePath)
 	// if e != nil {
 	// 	return nil, fmt.Errorf("Error reading %s: %w", onnxFilePath, e)

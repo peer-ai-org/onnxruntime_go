@@ -59,7 +59,7 @@ OrtStatus *CreateSessionPath(char *model_path,
 
 // Creates an ORT session using the given model.
 OrtStatus *CreateSessionPathWithCUDA(char *model_path,
-  OrtEnv *env, OrtSession **out);
+  OrtEnv *env, OrtSession **out, int cuda_device_id);
 
 // Creates an ORT session using the given model.
 OrtStatus *CreateSession(void *model_data, size_t model_data_length,

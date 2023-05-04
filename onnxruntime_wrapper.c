@@ -47,13 +47,13 @@ const wchar_t *GetWC(const char *c)
 #endif
 
 OrtStatus *CreateSessionPathWithCUDA(char *model_path,
-  OrtEnv *env, OrtSession **out) {
+  OrtEnv *env, OrtSession **out, int cuda_device_id) {
   OrtStatus *status = NULL;
   OrtSessionOptions *options = NULL;
   status = ort_api->CreateSessionOptions(&options);
   if (status) return status;
   OrtCUDAProviderOptions cuda_options;
-  cuda_options.device_id = 0;
+  cuda_options.device_id = cuda_device_id;
   cuda_options.arena_extend_strategy = 0; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
   // cuda_options.gpu_mem_limit = 2L * 1024 * 1024 * 1024;
   cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
