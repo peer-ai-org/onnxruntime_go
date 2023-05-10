@@ -46,6 +46,56 @@ const wchar_t *GetWC(const char *c)
 }
 #endif
 
+
+OrtStatus *IsCoreMLAvailable() {
+  OrtStatus *status = NULL;
+  OrtSessionOptions *options = NULL;
+  status = ort_api->CreateSessionOptions(&options);
+  if (status) return status;
+  uint32_t coreml_flags = 0;
+  status = ort_api->SessionOptionsAppendExecutionProvider_CoreML(options, &coreml_flags);
+  return status;
+}
+
+OrtStatus *IsCUDAAvailable(int cuda_device_id) {
+  OrtStatus *status = NULL;
+  OrtSessionOptions *options = NULL;
+  status = ort_api->CreateSessionOptions(&options);
+  if (status) return status;
+  OrtCUDAProviderOptions cuda_options;
+  cuda_options.device_id = cuda_device_id;
+  cuda_options.arena_extend_strategy = 1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
+  // cuda_options.gpu_mem_limit = 2L * 1024 * 1024 * 1024; // 2GB
+  cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
+  cuda_options.do_copy_in_default_stream = 1;
+  // cuda_options.cudnn_conv_use_max_workspace = 1;
+  // cuda_options.cudnn_conv1d_pad_to_nc1d = 1;
+  cuda_options.user_compute_stream = NULL;
+  cuda_options.default_memory_arena_cfg = NULL;
+  // status = OrtSessionOptionsAppendExecutionProvider_CUDA(options, cuda_device_id);
+  status = ort_api->SessionOptionsAppendExecutionProvider_CUDA(options, &cuda_options);
+  return status;
+}
+
+OrtStatus *CreateSessionPathWithCoreML(char *model_path,
+  OrtEnv *env, OrtSession **out) {
+  OrtStatus *status = NULL;
+  OrtSessionOptions *options = NULL;
+  status = ort_api->CreateSessionOptions(&options);
+  if (status) return status;
+  uint32_t coreml_flags = 0;
+
+  // status = OrtSessionOptionsAppendExecutionProvider_CoreML(options, coreml_flags);
+  status = ort_api->SessionOptionsAppendExecutionProvider_CoreML(options, &coreml_flags);
+  if (status) return status;
+  status = ort_api->CreateSession(env, model_path,
+    options, out);
+  // It's OK to release the session options now, right? The docs don't say.
+  ort_api->ReleaseSessionOptions(options);
+  return status;
+}
+
+
 OrtStatus *CreateSessionPathWithCUDA(char *model_path,
   OrtEnv *env, OrtSession **out, int cuda_device_id) {
   OrtStatus *status = NULL;
@@ -55,13 +105,14 @@ OrtStatus *CreateSessionPathWithCUDA(char *model_path,
   OrtCUDAProviderOptions cuda_options;
   cuda_options.device_id = cuda_device_id;
   cuda_options.arena_extend_strategy = 1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
-  cuda_options.gpu_mem_limit = 16L * 1024 * 1024 * 1024; // 16GB
+  // cuda_options.gpu_mem_limit = 2L * 1024 * 1024 * 1024; // 2GB
   cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
   cuda_options.do_copy_in_default_stream = 1;
   // cuda_options.cudnn_conv_use_max_workspace = 1;
   // cuda_options.cudnn_conv1d_pad_to_nc1d = 1;
   cuda_options.user_compute_stream = NULL;
   cuda_options.default_memory_arena_cfg = NULL;
+  // status = OrtSessionOptionsAppendExecutionProvider_CUDA(options, cuda_device_id);
   status = ort_api->SessionOptionsAppendExecutionProvider_CUDA(options, &cuda_options);
   if (status) return status;
   #ifdef _WIN32_SESSION

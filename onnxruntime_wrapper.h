@@ -19,7 +19,7 @@
 // Next, we actually include the header.
 #undef _WIN32
 #include "onnxruntime_c_api.h"
-
+#include "coreml_provider_factory.h"
 // ... However, mingw will complain if _WIN32 is *not* defined! So redefine it.
 #define _WIN32
 
@@ -55,6 +55,16 @@ const char *GetErrorMessage(OrtStatus *status);
 
 // Creates an ORT session using the given model.
 OrtStatus *CreateSessionPath(char *model_path,
+  OrtEnv *env, OrtSession **out);
+
+// Check if CoreML is available
+OrtStatus *IsCoreMLAvailable();
+
+// Check if CUDA is available for the given device ID
+OrtStatus *IsCUDAAvailable(int cuda_device_id);
+
+// Creates an ORT session using the given model.
+OrtStatus *CreateSessionPathWithCoreML(char *model_path,
   OrtEnv *env, OrtSession **out);
 
 // Creates an ORT session using the given model.

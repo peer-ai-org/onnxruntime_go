@@ -195,7 +195,7 @@ func InitONNXEnv(cuda bool) error {
 	var name string
 	GOOS := runtime.GOOS
 	// GOOS = "linux"
-	version := "1.14.0"
+	version := "1.14.1"
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -310,6 +310,48 @@ func InitONNXEnv(cuda bool) error {
 	return nil
 }
 
+// func TestIsCoreMLAvailable(t *testing.T) {
+// 	e := InitONNXEnv(false)
+// 	defer func() {
+// 		e := DestroyEnvironment()
+// 		if e != nil {
+// 			t.Logf("Error cleaning up environment: %s\n", e)
+// 			t.FailNow()
+// 		}
+// 	}()
+// 	if e != nil {
+// 		t.Logf("Failed setting up onnxruntime environment: %s\n", e)
+// 		t.FailNow()
+// 	}
+
+// 	coreML := IsCoreMLAvailable()
+// 	if !coreML {
+// 		t.Logf("CoreML should be available, but it isn't")
+// 		t.FailNow()
+// 	}
+// }
+
+// func TestIsCUDAAvailable(t *testing.T) {
+// 	e := InitONNXEnv(true)
+// 	defer func() {
+// 		e := DestroyEnvironment()
+// 		if e != nil {
+// 			t.Logf("Error cleaning up environment: %s\n", e)
+// 			t.FailNow()
+// 		}
+// 	}()
+// 	if e != nil {
+// 		t.Logf("Failed setting up onnxruntime environment: %s\n", e)
+// 		t.FailNow()
+// 	}
+
+// 	cuda := IsCUDAAvailable(0)
+// 	if !cuda {
+// 		t.Logf("CUDA should be available, but it isn't")
+// 		t.FailNow()
+// 	}
+// }
+
 // This must be called prior to running each test.
 func TestInitializeRuntime(t *testing.T) {
 	e := InitONNXEnv(false)
@@ -337,6 +379,7 @@ func TestInitializeRuntime(t *testing.T) {
 		t.FailNow()
 	}
 }
+
 func TestInitializeRuntimeCUDA(t *testing.T) {
 	e := InitONNXEnv(true)
 	defer func() {
@@ -538,7 +581,7 @@ func TestLoadExternalFormatOnnx(t *testing.T) {
 	}
 
 	// Set up and run the session.
-	session, e := NewSessionWithType("test_data/unet/model.onnx",
+	session, e := NewSessionWithPathWithType("test_data/unet/model.onnx",
 		[]string{"sample", "timestep", "encoder_hidden_states"}, []string{"out_sample"},
 		[]*TensorWithType{{
 			Tensor:     inputTensor,
@@ -613,7 +656,7 @@ func TestLoadExternalFormatOnnxTextEncoder(t *testing.T) {
 		return
 	}
 	// Set up and run the session.
-	session, e := NewSessionWithType("test_data/text_encoder/model.onnx",
+	session, e := NewSessionWithPathWithType("test_data/text_encoder/model.onnx",
 		[]string{"input_ids"}, []string{"last_hidden_state", "pooler_output"},
 		[]*TensorWithType{{
 			Tensor:     inputTensor,
@@ -678,7 +721,7 @@ func TestLoadExternalFormatOnnxVAEDecoder(t *testing.T) {
 	}
 
 	// Set up and run the session.
-	session, e := NewSessionWithType("test_data/vae_decoder/model.onnx",
+	session, e := NewSessionWithPathWithType("test_data/vae_decoder/model.onnx",
 		[]string{"latent_sample"}, []string{"sample"},
 		[]*TensorWithType{{
 			Tensor:     inputTensor,
@@ -733,7 +776,60 @@ func TestExampleNetwork(t *testing.T) {
 	defer outputTensor.Destroy()
 
 	// Set up and run the session.
-	session, e := NewSessionWithType("test_data/example_network.onnx",
+	session, e := NewSessionWithPathWithType("test_data/example_network.onnx",
+		[]string{"1x4 Input Vector"}, []string{"1x2 Output Vector"},
+		[]*TensorWithType{{
+			Tensor:     inputTensor,
+			TensorType: "float32",
+		}}, []*TensorWithType{{
+			Tensor:     outputTensor,
+			TensorType: "float32",
+		}})
+	if e != nil {
+		t.Logf("Failed creating session: %s\n", e)
+		t.FailNow()
+	}
+	defer session.Destroy()
+	e = session.Run()
+	if e != nil {
+		t.Logf("Failed to run the session: %s\n", e)
+		t.FailNow()
+	}
+	e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
+	if e != nil {
+		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+		t.FailNow()
+	}
+}
+
+func TestExampleNetworkWithCoreML(t *testing.T) {
+	InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
+
+	// Create input and output tensors
+	inputs := parseInputsJSON("test_data/example_network_results.json", t)
+	inputTensor, e := NewTensor(Shape(inputs.InputShape),
+		inputs.FlattenedInput)
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	defer inputTensor.Destroy()
+	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+	if e != nil {
+		t.Logf("Failed creating output tensor: %s\n", e)
+		t.FailNow()
+	}
+	defer outputTensor.Destroy()
+
+	// Set up and run the session.
+	session, e := NewSessionWithPathWithTypeWithCoreML("test_data/example_network.onnx",
 		[]string{"1x4 Input Vector"}, []string{"1x2 Output Vector"},
 		[]*TensorWithType{{
 			Tensor:     inputTensor,
@@ -786,7 +882,7 @@ func TestExampleNetworkWithCUDA(t *testing.T) {
 	defer outputTensor.Destroy()
 
 	// Set up and run the session.
-	session, e := NewSessionWithTypeWithCUDA("test_data/example_network.onnx",
+	session, e := NewSessionWithPathWithTypeWithCUDA("test_data/example_network.onnx",
 		[]string{"1x4 Input Vector"}, []string{"1x2 Output Vector"},
 		[]*TensorWithType{{
 			Tensor:     inputTensor,

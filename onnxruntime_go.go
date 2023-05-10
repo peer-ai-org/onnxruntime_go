@@ -404,6 +404,131 @@ func NewSessionWithONNXData[IT TensorData, OT TensorData](onnxData []byte, input
 	}, nil
 }
 
+func checkInputsOutputs(inputs []*TensorWithType, outputs []*TensorWithType, inputNames, outputNames []string) error {
+	if len(inputs) == 0 {
+		return fmt.Errorf("No inputs were provided")
+	}
+	if len(outputs) == 0 {
+		return fmt.Errorf("No outputs were provided")
+	}
+	if len(inputs) != len(inputNames) {
+		return fmt.Errorf("Got %d input tensors, but %d input names", len(inputs), len(inputNames))
+	}
+	if len(outputs) != len(outputNames) {
+		return fmt.Errorf("Got %d output tensors, but %d output names", len(outputs), len(outputNames))
+	}
+
+	return nil
+}
+
+func convertTensors(tensors []*TensorWithType) []*C.OrtValue {
+	ortTensors := make([]*C.OrtValue, len(tensors))
+	for i, v := range tensors {
+		switch v.TensorType {
+		case "float32":
+			ortTensors[i] = v.Tensor.(*Tensor[float32]).ortValue
+		case "float64":
+			ortTensors[i] = v.Tensor.(*Tensor[float64]).ortValue
+		case "int8":
+			ortTensors[i] = v.Tensor.(*Tensor[int8]).ortValue
+		case "int16":
+			ortTensors[i] = v.Tensor.(*Tensor[int16]).ortValue
+		case "int32":
+			ortTensors[i] = v.Tensor.(*Tensor[int32]).ortValue
+		case "int64":
+			ortTensors[i] = v.Tensor.(*Tensor[int64]).ortValue
+		case "uint8":
+			ortTensors[i] = v.Tensor.(*Tensor[uint8]).ortValue
+		case "uint16":
+			ortTensors[i] = v.Tensor.(*Tensor[uint16]).ortValue
+		case "uint32":
+			ortTensors[i] = v.Tensor.(*Tensor[uint32]).ortValue
+		case "uint64":
+			ortTensors[i] = v.Tensor.(*Tensor[uint64]).ortValue
+		}
+	}
+	return ortTensors
+}
+
+func convertNames(names []string) []*C.char {
+	cNames := make([]*C.char, len(names))
+	for i, v := range names {
+		cNames[i] = C.CString(v)
+	}
+	return cNames
+}
+
+// The same as NewSession, but takes a slice of bytes containing the .onnx
+// network rather than a file path.
+func NewSessionONNXDataWithType(onnxData []byte, inputNames,
+	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType) (*Session, error) {
+	if !IsInitialized() {
+		return nil, NotInitializedError
+	}
+
+	err := checkInputsOutputs(inputs, outputs, inputNames, outputNames)
+	if err != nil {
+		return nil, err
+	}
+
+	var ortSession *C.OrtSession
+	status := C.CreateSession(unsafe.Pointer(&(onnxData[0])),
+		C.size_t(len(onnxData)), ortEnv, &ortSession)
+	if status != nil {
+		return nil, fmt.Errorf("Error creating session: %w",
+			statusToError(status))
+	}
+
+	cInputNames := convertNames(inputNames)
+	cOutputNames := convertNames(outputNames)
+	inputOrtTensors := convertTensors(inputs)
+	outputOrtTensors := convertTensors(outputs)
+
+	return &Session{
+		ortSession:  ortSession,
+		inputNames:  cInputNames,
+		outputNames: cOutputNames,
+		inputs:      inputOrtTensors,
+		outputs:     outputOrtTensors,
+	}, nil
+}
+
+// The same as NewSession, but takes a slice of bytes containing the .onnx
+// network rather than a file path.
+func NewSessionWithPathWithTypeWithCoreML(path string, inputNames,
+	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
+	if !IsInitialized() {
+		return nil, NotInitializedError
+	}
+
+	err := checkInputsOutputs(inputs, outputs, inputNames, outputNames)
+	if err != nil {
+		return nil, err
+	}
+
+	var ortSession *C.OrtSession
+	modelPath := C.CString(path)
+	defer C.free(unsafe.Pointer(modelPath))
+
+	status := C.CreateSessionPathWithCoreML(modelPath, ortEnv, &ortSession)
+	if status != nil {
+		return nil, fmt.Errorf("Error creating session: %w",
+			statusToError(status))
+	}
+	cInputNames := convertNames(inputNames)
+	cOutputNames := convertNames(outputNames)
+	inputOrtTensors := convertTensors(inputs)
+	outputOrtTensors := convertTensors(outputs)
+
+	return &Session{
+		ortSession:  ortSession,
+		inputNames:  cInputNames,
+		outputNames: cOutputNames,
+		inputs:      inputOrtTensors,
+		outputs:     outputOrtTensors,
+	}, nil
+}
+
 // The same as NewSession, but takes a slice of bytes containing the .onnx
 // network rather than a file path.
 func NewSessionWithPathWithTypeWithCUDA(path string, inputNames,
@@ -411,19 +536,10 @@ func NewSessionWithPathWithTypeWithCUDA(path string, inputNames,
 	if !IsInitialized() {
 		return nil, NotInitializedError
 	}
-	if len(inputs) == 0 {
-		return nil, fmt.Errorf("No inputs were provided")
-	}
-	if len(outputs) == 0 {
-		return nil, fmt.Errorf("No outputs were provided")
-	}
-	if len(inputs) != len(inputNames) {
-		return nil, fmt.Errorf("Got %d input tensors, but %d input names",
-			len(inputs), len(inputNames))
-	}
-	if len(outputs) != len(outputNames) {
-		return nil, fmt.Errorf("Got %d output tensors, but %d output names",
-			len(outputs), len(outputNames))
+
+	err := checkInputsOutputs(inputs, outputs, inputNames, outputNames)
+	if err != nil {
+		return nil, err
 	}
 
 	var ortSession *C.OrtSession
@@ -445,69 +561,12 @@ func NewSessionWithPathWithTypeWithCUDA(path string, inputNames,
 		return nil, fmt.Errorf("Error creating session: %w",
 			statusToError(status))
 	}
-	// ONNXRuntime copies the file content unless a specific flag is provided
-	// when creating the session (and we don't provide it!)
 
-	// Collect the inputs and outputs, along with their names, into a format
-	// more convenient for passing to the Run() function in the C API.
-	cInputNames := make([]*C.char, len(inputNames))
-	cOutputNames := make([]*C.char, len(outputNames))
-	for i, v := range inputNames {
-		cInputNames[i] = C.CString(v)
-	}
-	for i, v := range outputNames {
-		cOutputNames[i] = C.CString(v)
-	}
-	inputOrtTensors := make([]*C.OrtValue, len(inputs))
-	outputOrtTensors := make([]*C.OrtValue, len(outputs))
-	for i, v := range inputs {
-		switch v.TensorType {
-		case "float32":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[float32]).ortValue
-		case "float64":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[float64]).ortValue
-		case "int8":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int8]).ortValue
-		case "int16":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int16]).ortValue
-		case "int32":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int32]).ortValue
-		case "int64":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int64]).ortValue
-		case "uint8":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint8]).ortValue
-		case "uint16":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint16]).ortValue
-		case "uint32":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint32]).ortValue
-		case "uint64":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint64]).ortValue
-		}
-	}
-	for i, v := range outputs {
-		switch v.TensorType {
-		case "float32":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[float32]).ortValue
-		case "float64":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[float64]).ortValue
-		case "int8":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int8]).ortValue
-		case "int16":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int16]).ortValue
-		case "int32":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int32]).ortValue
-		case "int64":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int64]).ortValue
-		case "uint8":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint8]).ortValue
-		case "uint16":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint16]).ortValue
-		case "uint32":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint32]).ortValue
-		case "uint64":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint64]).ortValue
-		}
-	}
+	cInputNames := convertNames(inputNames)
+	cOutputNames := convertNames(outputNames)
+	inputOrtTensors := convertTensors(inputs)
+	outputOrtTensors := convertTensors(outputs)
+
 	return &Session{
 		ortSession:  ortSession,
 		inputNames:  cInputNames,
@@ -524,19 +583,10 @@ func NewSessionWithPathWithType(path string, inputNames,
 	if !IsInitialized() {
 		return nil, NotInitializedError
 	}
-	if len(inputs) == 0 {
-		return nil, fmt.Errorf("No inputs were provided")
-	}
-	if len(outputs) == 0 {
-		return nil, fmt.Errorf("No outputs were provided")
-	}
-	if len(inputs) != len(inputNames) {
-		return nil, fmt.Errorf("Got %d input tensors, but %d input names",
-			len(inputs), len(inputNames))
-	}
-	if len(outputs) != len(outputNames) {
-		return nil, fmt.Errorf("Got %d output tensors, but %d output names",
-			len(outputs), len(outputNames))
+
+	err := checkInputsOutputs(inputs, outputs, inputNames, outputNames)
+	if err != nil {
+		return nil, err
 	}
 
 	var ortSession *C.OrtSession
@@ -547,69 +597,12 @@ func NewSessionWithPathWithType(path string, inputNames,
 		return nil, fmt.Errorf("Error creating session: %w",
 			statusToError(status))
 	}
-	// ONNXRuntime copies the file content unless a specific flag is provided
-	// when creating the session (and we don't provide it!)
 
-	// Collect the inputs and outputs, along with their names, into a format
-	// more convenient for passing to the Run() function in the C API.
-	cInputNames := make([]*C.char, len(inputNames))
-	cOutputNames := make([]*C.char, len(outputNames))
-	for i, v := range inputNames {
-		cInputNames[i] = C.CString(v)
-	}
-	for i, v := range outputNames {
-		cOutputNames[i] = C.CString(v)
-	}
-	inputOrtTensors := make([]*C.OrtValue, len(inputs))
-	outputOrtTensors := make([]*C.OrtValue, len(outputs))
-	for i, v := range inputs {
-		switch v.TensorType {
-		case "float32":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[float32]).ortValue
-		case "float64":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[float64]).ortValue
-		case "int8":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int8]).ortValue
-		case "int16":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int16]).ortValue
-		case "int32":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int32]).ortValue
-		case "int64":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[int64]).ortValue
-		case "uint8":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint8]).ortValue
-		case "uint16":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint16]).ortValue
-		case "uint32":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint32]).ortValue
-		case "uint64":
-			inputOrtTensors[i] = v.Tensor.(*Tensor[uint64]).ortValue
-		}
-	}
-	for i, v := range outputs {
-		switch v.TensorType {
-		case "float32":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[float32]).ortValue
-		case "float64":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[float64]).ortValue
-		case "int8":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int8]).ortValue
-		case "int16":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int16]).ortValue
-		case "int32":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int32]).ortValue
-		case "int64":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[int64]).ortValue
-		case "uint8":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint8]).ortValue
-		case "uint16":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint16]).ortValue
-		case "uint32":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint32]).ortValue
-		case "uint64":
-			outputOrtTensors[i] = v.Tensor.(*Tensor[uint64]).ortValue
-		}
-	}
+	cInputNames := convertNames(inputNames)
+	cOutputNames := convertNames(outputNames)
+	inputOrtTensors := convertTensors(inputs)
+	outputOrtTensors := convertTensors(outputs)
+
 	return &Session{
 		ortSession:  ortSession,
 		inputNames:  cInputNames,
@@ -705,41 +698,77 @@ func NewSession[IT TensorData, OT TensorData](onnxFilePath string, inputNames,
 	return toReturn, nil
 }
 
-func NewSessionWithTypeWithCUDA(onnxFilePath string, inputNames,
-	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
-
-	toReturn, e := NewSessionWithPathWithTypeWithCUDA(onnxFilePath, inputNames, outputNames, inputs, outputs, opts...)
-	// fileContent, e := os.ReadFile(onnxFilePath)
-	// if e != nil {
-	// 	return nil, fmt.Errorf("Error reading %s: %w", onnxFilePath, e)
-	// }
-
-	// toReturn, e := NewSessionWithONNXData(fileContent, inputNames,
-	// 	outputNames, inputs, outputs)
-	if e != nil {
-		return nil, fmt.Errorf("Error creating session from %s: %w",
-			onnxFilePath, e)
+func IsCoreMLAvailable() bool {
+	status := C.IsCoreMLAvailable()
+	if status != nil {
+		fmt.Printf("Error checking CoreML availability: %s\n", statusToError(status))
+		return false
 	}
-	return toReturn, nil
+	return true
 }
 
-func NewSessionWithType(onnxFilePath string, inputNames,
-	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType) (*Session, error) {
-
-	toReturn, e := NewSessionWithPathWithType(onnxFilePath, inputNames, outputNames, inputs, outputs)
-	// fileContent, e := os.ReadFile(onnxFilePath)
-	// if e != nil {
-	// 	return nil, fmt.Errorf("Error reading %s: %w", onnxFilePath, e)
-	// }
-
-	// toReturn, e := NewSessionWithONNXData(fileContent, inputNames,
-	// 	outputNames, inputs, outputs)
-	if e != nil {
-		return nil, fmt.Errorf("Error creating session from %s: %w",
-			onnxFilePath, e)
+func IsCUDAAvailable(deviceId int) bool {
+	status := C.IsCUDAAvailable(C.int(deviceId))
+	if status != nil {
+		fmt.Printf("Error checking CUDA availability: %s\n", statusToError(status))
+		return false
 	}
-	return toReturn, nil
+	return true
 }
+
+// func NewSessionWithTypeWithCoreML(onnxFilePath string, inputNames,
+// 	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
+
+// 	toReturn, e := NewSessionWithPathWithTypeWithCoreML(onnxFilePath, inputNames, outputNames, inputs, outputs, opts...)
+// 	// fileContent, e := os.ReadFile(onnxFilePath)
+// 	// if e != nil {
+// 	// 	return nil, fmt.Errorf("Error reading %s: %w", onnxFilePath, e)
+// 	// }
+
+// 	// toReturn, e := NewSessionWithONNXData(fileContent, inputNames,
+// 	// 	outputNames, inputs, outputs)
+// 	if e != nil {
+// 		return nil, fmt.Errorf("Error creating session from %s: %w",
+// 			onnxFilePath, e)
+// 	}
+// 	return toReturn, nil
+// }
+
+// func NewSessionWithTypeWithCUDA(onnxFilePath string, inputNames,
+// 	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
+
+// 	toReturn, e := NewSessionWithPathWithTypeWithCUDA(onnxFilePath, inputNames, outputNames, inputs, outputs, opts...)
+// 	// fileContent, e := os.ReadFile(onnxFilePath)
+// 	// if e != nil {
+// 	// 	return nil, fmt.Errorf("Error reading %s: %w", onnxFilePath, e)
+// 	// }
+
+// 	// toReturn, e := NewSessionWithONNXData(fileContent, inputNames,
+// 	// 	outputNames, inputs, outputs)
+// 	if e != nil {
+// 		return nil, fmt.Errorf("Error creating session from %s: %w",
+// 			onnxFilePath, e)
+// 	}
+// 	return toReturn, nil
+// }
+
+// func NewSessionWithType(onnxFilePath string, inputNames,
+// 	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType) (*Session, error) {
+
+// 	toReturn, e := NewSessionWithPathWithType(onnxFilePath, inputNames, outputNames, inputs, outputs)
+// 	// fileContent, e := os.ReadFile(onnxFilePath)
+// 	// if e != nil {
+// 	// 	return nil, fmt.Errorf("Error reading %s: %w", onnxFilePath, e)
+// 	// }
+
+// 	// toReturn, e := NewSessionWithONNXData(fileContent, inputNames,
+// 	// 	outputNames, inputs, outputs)
+// 	if e != nil {
+// 		return nil, fmt.Errorf("Error creating session from %s: %w",
+// 			onnxFilePath, e)
+// 	}
+// 	return toReturn, nil
+// }
 
 func (s *Session) Destroy() error {
 	if s.ortSession != nil {
