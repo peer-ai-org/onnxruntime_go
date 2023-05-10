@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dlfcn.h>
 
 #ifdef _WIN32
 #define _WIN32_SESSION
@@ -20,6 +21,7 @@
 #undef _WIN32
 #include "onnxruntime_c_api.h"
 #include "coreml_provider_factory.h"
+
 // ... However, mingw will complain if _WIN32 is *not* defined! So redefine it.
 #define _WIN32
 
@@ -63,9 +65,13 @@ OrtStatus *IsCoreMLAvailable();
 // Check if CUDA is available for the given device ID
 OrtStatus *IsCUDAAvailable(int cuda_device_id);
 
+OrtSessionOptions *CreateSessionOptions();
+OrtStatus *CreateSessionPathWithOptions(char *model_path,
+  OrtEnv *env, OrtSession **out, OrtSessionOptions *options);
+
 // Creates an ORT session using the given model.
-OrtStatus *CreateSessionPathWithCoreML(char *model_path,
-  OrtEnv *env, OrtSession **out);
+// OrtStatus *CreateSessionPathWithCoreML(char *model_path,
+//   OrtEnv *env, OrtSession **out);
 
 // Creates an ORT session using the given model.
 OrtStatus *CreateSessionPathWithCUDA(char *model_path,

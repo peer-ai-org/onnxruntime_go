@@ -8,12 +8,24 @@ import (
 	"fmt"
 	"strconv"
 	// "os"
+	// "github.com/ebitengine/purego"
 	"unsafe"
 )
 
-// #cgo CFLAGS: -O2 -g
-//
-// #include "onnxruntime_wrapper.h"
+/*
+#cgo CFLAGS: -O2 -g
+#cgo LDFLAGS: -ldl
+
+#include <dlfcn.h>
+#include "onnxruntime_wrapper.h"
+typedef void (*AppendOptionsFunction)(OrtSessionOptions *options, uint32_t flags);
+
+// Since Go can't call C function pointers directly, we just use this helper
+// when calling GetApiBase
+void CallAppendOptionsFunction(void *fn, OrtSessionOptions *options) {
+	((AppendOptionsFunction) fn)(options, 0);
+}
+*/
 import "C"
 
 // This string should be the path to onnxruntime.so, or onnxruntime.dll.
@@ -510,7 +522,14 @@ func NewSessionWithPathWithTypeWithCoreML(path string, inputNames,
 	modelPath := C.CString(path)
 	defer C.free(unsafe.Pointer(modelPath))
 
-	status := C.CreateSessionPathWithCoreML(modelPath, ortEnv, &ortSession)
+	options := C.CreateSessionOptions()
+	cFunctionName := C.CString("OrtSessionOptionsAppendExecutionProvider_CoreML")
+	defer C.free(unsafe.Pointer(cFunctionName))
+	appendOptionsProc := C.dlsym(libraryHandle, cFunctionName)
+	C.CallAppendOptionsFunction(appendOptionsProc, options)
+	// fmt.Printf("ortAPIBase: %v\n", ortAPIBase)
+
+	status := C.CreateSessionPathWithOptions(modelPath, ortEnv, &ortSession, options)
 	if status != nil {
 		return nil, fmt.Errorf("Error creating session: %w",
 			statusToError(status))

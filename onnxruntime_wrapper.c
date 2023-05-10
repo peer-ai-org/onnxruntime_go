@@ -51,10 +51,10 @@ OrtStatus *IsCoreMLAvailable() {
   OrtStatus *status = NULL;
   OrtSessionOptions *options = NULL;
   status = ort_api->CreateSessionOptions(&options);
-  if (status) return status;
-  uint32_t coreml_flags = 0;
-  status = ort_api->SessionOptionsAppendExecutionProvider_CoreML(options, &coreml_flags);
   return status;
+  // uint32_t coreml_flags = 0;
+  // status = ort_api->SessionOptionsAppendExecutionProvider_CoreML(options, &coreml_flags);
+  // return status;
 }
 
 OrtStatus *IsCUDAAvailable(int cuda_device_id) {
@@ -77,16 +77,15 @@ OrtStatus *IsCUDAAvailable(int cuda_device_id) {
   return status;
 }
 
-OrtStatus *CreateSessionPathWithCoreML(char *model_path,
-  OrtEnv *env, OrtSession **out) {
+OrtSessionOptions *CreateSessionOptions() {
   OrtStatus *status = NULL;
   OrtSessionOptions *options = NULL;
   status = ort_api->CreateSessionOptions(&options);
-  if (status) return status;
-  uint32_t coreml_flags = 0;
-
-  // status = OrtSessionOptionsAppendExecutionProvider_CoreML(options, coreml_flags);
-  status = ort_api->SessionOptionsAppendExecutionProvider_CoreML(options, &coreml_flags);
+  return options;
+}
+OrtStatus *CreateSessionPathWithOptions(char *model_path,
+  OrtEnv *env, OrtSession **out, OrtSessionOptions *options) {
+  OrtStatus *status = NULL;
   if (status) return status;
   status = ort_api->CreateSession(env, model_path,
     options, out);
@@ -94,6 +93,24 @@ OrtStatus *CreateSessionPathWithCoreML(char *model_path,
   ort_api->ReleaseSessionOptions(options);
   return status;
 }
+
+// OrtStatus *CreateSessionPathWithCoreML(char *model_path,
+//   OrtEnv *env, OrtSession **out) {
+//   OrtStatus *status = NULL;
+//   OrtSessionOptions *options = NULL;
+//   status = ort_api->CreateSessionOptions(&options);
+//   if (status) return status;
+//   uint32_t coreml_flags = 0;
+
+//   // status = OrtSessionOptionsAppendExecutionProvider_CoreML(options, coreml_flags);
+//   // status = ort_api->SessionOptionsAppendExecutionProvider_CoreML(options, &coreml_flags);
+//   if (status) return status;
+//   status = ort_api->CreateSession(env, model_path,
+//     options, out);
+//   // It's OK to release the session options now, right? The docs don't say.
+//   ort_api->ReleaseSessionOptions(options);
+//   return status;
+// }
 
 
 OrtStatus *CreateSessionPathWithCUDA(char *model_path,

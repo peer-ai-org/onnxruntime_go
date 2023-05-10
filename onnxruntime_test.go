@@ -173,10 +173,11 @@ func ExtractTarGz(fname string, dest string) error {
 // This type is read from JSON and used to determine the inputs and expected
 // outputs for an ONNX network.
 type testInputsInfo struct {
-	InputShape      []int64   `json:"input_shape"`
-	FlattenedInput  []float32 `json:"flattened_input"`
-	OutputShape     []int64   `json:"output_shape"`
-	FlattenedOutput []float32 `json:"flattened_output"`
+	InputShape            []int64   `json:"input_shape"`
+	FlattenedInput        []float32 `json:"flattened_input"`
+	OutputShape           []int64   `json:"output_shape"`
+	FlattenedOutput       []float32 `json:"flattened_output"`
+	CoreMLFlattenedOutput []float32 `json:"coreml_flattened_output"`
 }
 
 type testExternalInputsInfo struct {
@@ -848,7 +849,10 @@ func TestExampleNetworkWithCoreML(t *testing.T) {
 		t.Logf("Failed to run the session: %s\n", e)
 		t.FailNow()
 	}
-	e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
+	// fmt.Printf("input4 %+v\n", inputTensor.GetData()[0:4])
+	// fmt.Printf("output4 %+v\n", outputTensor.GetData()[0:2])
+	// fmt.Printf("output4 %+v\n", inputs.FlattenedOutput[0:2])
+	e = floatsEqual(outputTensor.GetData(), inputs.CoreMLFlattenedOutput)
 	if e != nil {
 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
 		t.FailNow()

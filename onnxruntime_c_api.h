@@ -2488,20 +2488,7 @@ struct OrtApi {
   /// @}
   /// \name OrtSessionOptions
   /// @{
-
-  /** \brief Append CoreML provider to session options
-   *
-   * If CoreML is not available (due to a non CoreML enabled build, or if CoreML is not installed on the system), this function will return failure.
-   *
-   * \param[in] options
-   * \param[in] coreml_flags
-   *
-   * \snippet{doc} snippets.dox OrtStatus Return Value
-   */
-  ORT_API2_STATUS(SessionOptionsAppendExecutionProvider_CoreML,
-                  _In_ OrtSessionOptions* options, _In_ const uint32_t* coreml_flags);
-
-
+    
   /** \brief Append CUDA provider to session options
    *
    * If CUDA is not available (due to a non CUDA enabled build, or if CUDA is not installed on the system), this function will return failure.
