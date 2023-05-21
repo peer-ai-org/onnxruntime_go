@@ -111,7 +111,41 @@ OrtStatus *CreateSessionPathWithOptions(char *model_path,
 //   ort_api->ReleaseSessionOptions(options);
 //   return status;
 // }
+OrtStatus *AppendExecutionProvider_CUDA(OrtSessionOptions *options, int cuda_device_id) {
+  OrtStatus *status = NULL;
+  OrtCUDAProviderOptions cuda_options;
+  cuda_options.device_id = cuda_device_id;
+  cuda_options.arena_extend_strategy = 1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
+  // cuda_options.gpu_mem_limit = 2L * 1024 * 1024 * 1024; // 2GB
+  cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
+  cuda_options.do_copy_in_default_stream = 1;
+  // cuda_options.cudnn_conv_use_max_workspace = 1;
+  // cuda_options.cudnn_conv1d_pad_to_nc1d = 1;
+  cuda_options.user_compute_stream = NULL;
+  cuda_options.default_memory_arena_cfg = NULL;
+  // status = OrtSessionOptionsAppendExecutionProvider_CUDA(options, cuda_device_id);
+  status = ort_api->SessionOptionsAppendExecutionProvider_CUDA(options, &cuda_options);
+  return status;
+}
 
+OrtStatus *AppendExecutionProvider_TensorRT(OrtSessionOptions *options, int cuda_device_id, int trt_fp16_enable, int trt_int8_enable) {
+  OrtStatus *status = NULL;
+  OrtTensorRTProviderOptions cuda_options;
+  cuda_options.device_id = cuda_device_id;
+  cuda_options.trt_fp16_enable = trt_fp16_enable;
+  cuda_options.trt_int8_enable = trt_int8_enable;
+  // cuda_options.arena_extend_strategy = 1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
+  // cuda_options.gpu_mem_limit = 2L * 1024 * 1024 * 1024; // 2GB
+  // cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
+  // cuda_options.do_copy_in_default_stream = 1;
+  // cuda_options.cudnn_conv_use_max_workspace = 1;
+  // cuda_options.cudnn_conv1d_pad_to_nc1d = 1;
+  // cuda_options.user_compute_stream = NULL;
+  // cuda_options.default_memory_arena_cfg = NULL;
+  // status = OrtSessionOptionsAppendExecutionProvider_CUDA(options, cuda_device_id);
+  status = ort_api->SessionOptionsAppendExecutionProvider_TensorRT(options, &cuda_options);
+  return status;
+}
 
 OrtStatus *CreateSessionPathWithCUDA(char *model_path,
   OrtEnv *env, OrtSession **out, int cuda_device_id) {
