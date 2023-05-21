@@ -49,6 +49,8 @@ func GetTensorElementDataType[T TensorData]() C.ONNXTensorElementDataType {
 		return C.ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64
 	case reflect.Uint64:
 		return C.ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64
+	case reflect.Bool:
+		return C.ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL
 	}
 	return C.ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED
 }
