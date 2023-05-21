@@ -525,9 +525,9 @@ func TestCreateTensor(t *testing.T) {
 
 func makeRange[T TensorData](min, max int) []T {
 	a := make([]T, max-min+1)
-	for i := range a {
-		a[i] = T(1.0)
-	}
+	// for i := range a {
+	// 	a[i] = T(1.0)
+	// }
 	return a
 }
 

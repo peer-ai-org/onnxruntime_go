@@ -19,7 +19,7 @@ type IntData interface {
 
 // This is used as a type constraint for the generic Tensor type.
 type TensorData interface {
-	FloatData | IntData
+	FloatData | IntData | ~bool
 }
 
 // Returns the ONNX enum value used to indicate TensorData type T.

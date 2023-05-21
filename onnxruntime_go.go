@@ -184,6 +184,8 @@ func (t *TensorWithType) GetData() interface{} {
 		return t.Tensor.(*Tensor[uint32]).GetData()
 	case "uint64":
 		return t.Tensor.(*Tensor[uint64]).GetData()
+	case "bool":
+		return t.Tensor.(*Tensor[bool]).GetData()
 	}
 	return nil
 }
@@ -210,6 +212,8 @@ func (t *TensorWithType) Destroy() error {
 		return t.Tensor.(*Tensor[uint32]).Destroy()
 	case "uint64":
 		return t.Tensor.(*Tensor[uint64]).Destroy()
+	case "bool":
+		return t.Tensor.(*Tensor[bool]).Destroy()
 	}
 	return nil
 }
@@ -299,6 +303,9 @@ func NewEmptyTensorWithType(tensorType string, s Shape) (interface{}, error) {
 		return NewTensor(s, data)
 	case "uint64":
 		data := make([]uint64, elementCount)
+		return NewTensor(s, data)
+	case "bool":
+		data := make([]bool, elementCount)
 		return NewTensor(s, data)
 	default:
 		return nil, fmt.Errorf("Unsupported tensor type: %s", tensorType)
@@ -457,6 +464,8 @@ func convertTensors(tensors []*TensorWithType) []*C.OrtValue {
 			ortTensors[i] = v.Tensor.(*Tensor[uint32]).ortValue
 		case "uint64":
 			ortTensors[i] = v.Tensor.(*Tensor[uint64]).ortValue
+		case "bool":
+			ortTensors[i] = v.Tensor.(*Tensor[bool]).ortValue
 		}
 	}
 	return ortTensors
