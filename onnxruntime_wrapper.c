@@ -94,6 +94,130 @@ OrtStatus *CreateSessionPathWithOptions(char *model_path,
   return status;
 }
 
+IONames GetIONames(const OrtSession* session) {
+    IONames result;
+    result.input_names = NULL;
+    result.output_names = NULL;
+    result.input_count = 0;
+    result.output_count = 0;
+
+    OrtStatus* status;
+    OrtMemoryInfo* memory_info;
+    status = ort_api->CreateCpuMemoryInfo(OrtDeviceAllocator, OrtMemTypeDefault, &memory_info);
+    if (status != NULL) {
+        const char* error_message = ort_api->GetErrorMessage(status);
+        printf("Failed to create memory info: %s\n", error_message);
+        ort_api->ReleaseStatus(status);
+        return result;
+    }
+    
+    OrtAllocator* allocator;
+    status = ort_api->CreateAllocator(session, memory_info, &allocator);
+    if (status != NULL) {
+        const char* error_message = ort_api->GetErrorMessage(status);
+        printf("Failed to create allocator: %s\n", error_message);
+        ort_api->ReleaseStatus(status);
+        return result;
+    }
+
+    size_t input_count;
+    status = ort_api->SessionGetInputCount(session, &input_count);
+    if (status != NULL) {
+        const char* error_message = ort_api->GetErrorMessage(status);
+        printf("Failed to get input count: %s\n", error_message);
+        ort_api->ReleaseStatus(status);
+        return result;
+    }
+
+    // printf("Input count: %zu\n", input_count);
+
+    char** input_names = (char**)malloc(input_count * sizeof(char*));
+    for (int i = 0; i < input_count; i++) {
+        char* input_name;
+        status = ort_api->SessionGetInputName(session, i, allocator, &input_name);
+        if (status != NULL) {
+            const char* error_message = ort_api->GetErrorMessage(status);
+            printf("Failed to get input name at index %d: %s\n", i, error_message);
+            ort_api->ReleaseStatus(status);
+            free(input_names);  // Free the previously allocated names
+            return result;
+        }
+
+        // copy input_name to input_names[i]
+        input_names[i] = (char*)malloc(strlen(input_name) + 1);
+        strcpy(input_names[i], input_name);
+        // printf("Input %d : name=%s\n", i, input_names[i]);
+        // printf("Input %d : name=%s\n", i, input_name);
+
+        status = ort_api->AllocatorFree(allocator, input_name);
+        if (status != NULL) {
+            const char* error_message = ort_api->GetErrorMessage(status);
+            printf("Failed to free input name at index %d: %s\n", i, error_message);
+            ort_api->ReleaseStatus(status);
+            free(input_names);  // Free the previously allocated names
+            return result;
+        }
+    }
+
+    size_t output_count;
+    status = ort_api->SessionGetOutputCount(session, &output_count);
+    if (status != NULL) {
+        const char* error_message = ort_api->GetErrorMessage(status);
+        printf("Failed to get output count: %s\n", error_message);
+        ort_api->ReleaseStatus(status);
+        return result;
+    }
+
+    // printf("Output count: %zu\n", output_count);
+
+
+    char** output_names = (char**)malloc(output_count * sizeof(char*));
+    for (int i = 0; i < output_count; i++) {
+        char* output_name;
+        status = ort_api->SessionGetOutputName(session, i, allocator, &output_name);
+        if (status != NULL) {
+            const char* error_message = ort_api->GetErrorMessage(status);
+            printf("Failed to get output name at index %d: %s\n", i, error_message);
+            ort_api->ReleaseStatus(status);
+            free(output_names);  // Free the previously allocated names
+            return result;
+        }
+
+        // copy input_name to input_names[i]
+        output_names[i] = (char*)malloc(strlen(output_name) + 1);
+        strcpy(output_names[i], output_name);
+        // printf("Output %d : name=%s\n", i, output_names[i]);
+        // printf("Output %d : name=%s\n", i, output_name);
+
+        status = ort_api->AllocatorFree(allocator, output_name);
+        if (status != NULL) {
+            const char* error_message = ort_api->GetErrorMessage(status);
+            printf("Failed to free output name at index %d: %s\n", i, error_message);
+            ort_api->ReleaseStatus(status);
+            free(output_names);  // Free the previously allocated names
+            return result;
+        }
+    }
+
+    ort_api->ReleaseMemoryInfo(memory_info);
+    ort_api->ReleaseAllocator(allocator);
+
+    result.input_names = input_names;
+    result.output_names = output_names;
+    result.input_count = input_count;
+    result.output_count = output_count;
+    return result;
+}
+
+void FreeNames(char** names, int count) {
+    if (names != NULL) {
+        for (int i = 0; i < count; i++) {
+            free(names[i]);
+        }
+        free(names);
+    }
+}
+
 // OrtStatus *CreateSessionPathWithCoreML(char *model_path,
 //   OrtEnv *env, OrtSession **out) {
 //   OrtStatus *status = NULL;

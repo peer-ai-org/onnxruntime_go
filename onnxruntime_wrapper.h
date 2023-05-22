@@ -68,6 +68,16 @@ OrtStatus *IsCUDAAvailable(int cuda_device_id);
 OrtSessionOptions *CreateSessionOptions();
 OrtStatus *AppendExecutionProvider_CUDA(OrtSessionOptions *options, int cuda_device_id);
 OrtStatus *AppendExecutionProvider_TensorRT(OrtSessionOptions *options, int cuda_device_id, int trt_fp16_enable, int trt_int8_enable);
+
+typedef struct {
+    char** input_names;
+    int input_count;
+    char** output_names;
+    int output_count;
+} IONames;
+IONames GetIONames(const OrtSession* session);
+void FreeNames(char** names, int count);
+
 OrtStatus *CreateSessionPathWithOptions(char *model_path,
   OrtEnv *env, OrtSession **out, OrtSessionOptions *options);
 

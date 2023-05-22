@@ -362,6 +362,23 @@ type Session struct {
 	// We only actually keep around the OrtValue pointers from the tensors.
 	inputs  []*C.OrtValue
 	outputs []*C.OrtValue
+
+	inputCount  C.size_t
+	outputCount C.size_t
+}
+
+type SessionV2 struct {
+	ortSession *C.OrtSession
+	// We convert the tensor names to C strings only once, and keep them around
+	// here for future calls to Run().
+	inputNames  **C.char
+	outputNames **C.char
+
+	inputCount  C.int
+	outputCount C.int
+	// We only actually keep around the OrtValue pointers from the tensors.
+	inputs  []*C.OrtValue
+	outputs []*C.OrtValue
 }
 
 // The same as NewSession, but takes a slice of bytes containing the .onnx
@@ -514,8 +531,7 @@ func NewSessionONNXDataWithType(onnxData []byte, inputNames,
 	}, nil
 }
 
-func NewSessionV2(path string, inputNames,
-	outputNames []string, opts ...string) (*Session, error) {
+func NewSessionV2(path string, opts ...string) (*SessionV2, error) {
 	if !IsInitialized() {
 		return nil, NotInitializedError
 	}
@@ -540,7 +556,11 @@ func NewSessionV2(path string, inputNames,
 				deviceInt = 0
 			}
 			cudaDeviceId := C.int(deviceInt)
-			C.AppendExecutionProvider_CUDA(options, cudaDeviceId)
+			status := C.AppendExecutionProvider_CUDA(options, cudaDeviceId)
+			if status != nil {
+				return nil, fmt.Errorf("Error creating session: %w",
+					statusToError(status))
+			}
 		} else if deviceType == "tensorrt" {
 			deviceInt, err := strconv.Atoi(opts[1])
 			if err != nil {
@@ -557,7 +577,11 @@ func NewSessionV2(path string, inputNames,
 			deviceId := C.int(deviceInt)
 			fp16 := C.int(fp16Int)
 			int8 := C.int(int8Int)
-			C.AppendExecutionProvider_TensorRT(options, deviceId, fp16, int8)
+			status := C.AppendExecutionProvider_TensorRT(options, deviceId, fp16, int8)
+			if status != nil {
+				return nil, fmt.Errorf("Error creating session: %w",
+					statusToError(status))
+			}
 		}
 	}
 
@@ -568,35 +592,56 @@ func NewSessionV2(path string, inputNames,
 		return nil, fmt.Errorf("Error creating session: %w",
 			statusToError(status))
 	}
-	cInputNames := convertNames(inputNames)
-	cOutputNames := convertNames(outputNames)
+	cNames := C.GetIONames(ortSession)
+
+	// cInputNames := convertNames(inputNames)
+	// cOutputNames := convertNames(outputNames)
 	// inputOrtTensors := convertTensors(inputs)
 	// outputOrtTensors := convertTensors(outputs)
 
-	return &Session{
+	return &SessionV2{
 		ortSession:  ortSession,
-		inputNames:  cInputNames,
-		outputNames: cOutputNames,
+		inputNames:  cNames.input_names,
+		outputNames: cNames.output_names,
+		inputCount:  cNames.input_count,
+		outputCount: cNames.output_count,
 		// inputs:      inputOrtTensors,
 		// outputs:     outputOrtTensors,
 	}, nil
 }
 
 // Runs the session, updating the contents of the output tensors on success. Caller need to handle release inputs / outputs
-func (s *Session) RunV2(inputs []*TensorWithType, outputs []*TensorWithType) error {
+func (s *SessionV2) Run(inputs []*TensorWithType, outputs []*TensorWithType) error {
 
-	inputOrtTensors := convertTensors(inputs)
-	outputOrtTensors := convertTensors(outputs)
+	s.inputs = convertTensors(inputs)
+	s.outputs = convertTensors(outputs)
 
-	s.inputs = inputOrtTensors
-	s.outputs = outputOrtTensors
+	// fmt.Print("inputCount: ", s.inputCount, "\n")
+	// fmt.Print("outputCount: ", s.outputCount, "\n")
+	// fmt.Printf("inputNames: %v\n", s.inputNames)
+	// fmt.Printf("outputNames: %v\n", s.outputNames)
 
-	status := C.RunOrtSession(s.ortSession, &s.inputs[0], &s.inputNames[0],
-		C.int(len(s.inputs)), &s.outputs[0], &s.outputNames[0],
-		C.int(len(s.outputs)))
+	status := C.RunOrtSession(s.ortSession, &s.inputs[0], s.inputNames,
+		s.inputCount, &s.outputs[0], s.outputNames, s.outputCount)
 	if status != nil {
 		return fmt.Errorf("Error running network: %w", statusToError(status))
 	}
+	return nil
+}
+
+func (s *SessionV2) Destroy() error {
+	if s.ortSession != nil {
+		C.ReleaseOrtSession(s.ortSession)
+		s.ortSession = nil
+	}
+	C.FreeNames(s.inputNames, s.inputCount)
+	C.FreeNames(s.outputNames, s.outputCount)
+	s.inputCount = 0
+	s.outputCount = 0
+	s.inputNames = nil
+	s.outputNames = nil
+	s.inputs = nil
+	s.outputs = nil
 	return nil
 }
 
