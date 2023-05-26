@@ -78,6 +78,13 @@ typedef struct {
 IONames GetIONames(const OrtSession* session);
 void FreeNames(char** names, int count);
 
+size_t GetTensorElementCount(OrtValue *value);
+size_t GetTensorNumDimensions(OrtValue *value);
+int64_t GetTensorDimensions(OrtValue *value, size_t j);
+ONNXTensorElementDataType GetTensorElementType(OrtValue *output);
+
+OrtStatus *GetTensorMutableData(OrtValue *output, void *output_data);
+
 OrtStatus *CreateSessionPathWithOptions(char *model_path,
   OrtEnv *env, OrtSession **out, OrtSessionOptions *options);
 

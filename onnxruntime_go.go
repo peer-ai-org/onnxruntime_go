@@ -629,6 +629,99 @@ func (s *SessionV2) Run(inputs []*TensorWithType, outputs []*TensorWithType) err
 	return nil
 }
 
+func (s *SessionV2) RunV2(inputs []*TensorWithType, outputs []*TensorWithType) (err error) {
+
+	s.inputs = convertTensors(inputs)
+	// s.outputs = convertTensors(outputs)
+	s.outputs = make([]*C.OrtValue, len(outputs))
+
+	// fmt.Print("inputCount: ", s.inputCount, "\n")
+	// fmt.Print("outputCount: ", s.outputCount, "\n")
+	// fmt.Printf("inputNames: %v\n", s.inputNames)
+	// fmt.Printf("outputNames: %v\n", s.outputNames)
+
+	status := C.RunOrtSession(s.ortSession, &s.inputs[0], s.inputNames,
+		s.inputCount, &s.outputs[0], s.outputNames, s.outputCount)
+	if status != nil {
+		return fmt.Errorf("error running network: %w", statusToError(status))
+	}
+
+	for i := 0; i < len(outputs); i++ {
+		// fmt.Printf("s.outputs[i]: %v\n", s.outputs[i])
+		// create new Tensor and assign it to outputs[i].Tensor
+
+		numDims := int(C.GetTensorNumDimensions(s.outputs[i]))
+		shape := make([]int64, numDims)
+		elementCount := int64(1)
+		for j := 0; j < numDims; j++ {
+			shape[j] = int64(C.GetTensorDimensions(s.outputs[i], C.size_t(j)))
+			elementCount *= shape[j]
+		}
+
+		// fmt.Printf("elementCount: %v\n", elementCount)
+		// shape := make([]int64, 4)
+
+		// get data type
+		dataType := C.GetTensorElementType(s.outputs[i])
+
+		// switch
+		fmt.Printf("dataType: %v\n", dataType)
+		switch dataType {
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]float32, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]float64, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]int8, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]uint8, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]int16, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]uint16, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]int32, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]uint32, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]int64, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]uint64, elementCount), shape)
+		// case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING:
+		// 	outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]string, elementCount), shape)
+		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]bool, elementCount), shape)
+		// case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
+		// 	outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]float16, elementCount), shape)
+		// case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
+		// 	outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]complex64, elementCount), shape)
+		// case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
+		// 	outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]complex128, elementCount), shape)
+		// case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
+		// 	outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]bfloat16, elementCount), shape)
+		default:
+			return fmt.Errorf("unsupported data type: %v", dataType)
+		}
+		// C.ReleaseOrtValue(s.outputs[i])
+	}
+	if err != nil {
+		return fmt.Errorf("error getting tensor: %w", err)
+	}
+	return nil
+}
+
+func GetTensor[T TensorData](value *C.OrtValue, elementCount int64, data []T, shape []int64) (*Tensor[T], error) {
+	status := C.GetTensorMutableData(value, unsafe.Pointer(&data[0]))
+	if status != nil {
+		return nil, fmt.Errorf("error getting data: %w", statusToError(status))
+	}
+	return &Tensor[T]{
+		data:     data[0:elementCount],
+		shape:    shape,
+		ortValue: value,
+	}, nil
+}
+
 func (s *SessionV2) Destroy() error {
 	if s.ortSession != nil {
 		C.ReleaseOrtSession(s.ortSession)
