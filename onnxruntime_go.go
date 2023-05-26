@@ -162,7 +162,7 @@ type TensorWithType struct {
 	Tensor     interface{}
 }
 
-func (t *TensorWithType) GetShape() interface{} {
+func (t *TensorWithType) GetShape() []int64 {
 	switch t.TensorType {
 	case "float32":
 		return t.Tensor.(*Tensor[float32]).GetShape()
