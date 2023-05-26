@@ -162,6 +162,34 @@ type TensorWithType struct {
 	Tensor     interface{}
 }
 
+func (t *TensorWithType) GetShape() interface{} {
+	switch t.TensorType {
+	case "float32":
+		return t.Tensor.(*Tensor[float32]).GetShape()
+	case "float64":
+		return t.Tensor.(*Tensor[float64]).GetShape()
+	case "int8":
+		return t.Tensor.(*Tensor[int8]).GetShape()
+	case "int16":
+		return t.Tensor.(*Tensor[int16]).GetShape()
+	case "int32":
+		return t.Tensor.(*Tensor[int32]).GetShape()
+	case "int64":
+		return t.Tensor.(*Tensor[int64]).GetShape()
+	case "uint8":
+		return t.Tensor.(*Tensor[uint8]).GetShape()
+	case "uint16":
+		return t.Tensor.(*Tensor[uint16]).GetShape()
+	case "uint32":
+		return t.Tensor.(*Tensor[uint32]).GetShape()
+	case "uint64":
+		return t.Tensor.(*Tensor[uint64]).GetShape()
+	case "bool":
+		return t.Tensor.(*Tensor[bool]).GetShape()
+	}
+	return nil
+}
+
 func (t *TensorWithType) GetData() interface{} {
 	switch t.TensorType {
 	case "float32":
