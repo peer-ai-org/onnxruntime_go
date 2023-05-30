@@ -293,6 +293,7 @@ OrtStatus *AppendExecutionProvider_TensorRT(OrtSessionOptions *options, int cuda
   OrtStatus *status = NULL;
   OrtTensorRTProviderOptions cuda_options;
   cuda_options.device_id = cuda_device_id;
+  cuda_options.trt_max_workspace_size = 51539607552; // 48GB
   cuda_options.trt_fp16_enable = trt_fp16_enable;
   cuda_options.trt_int8_enable = trt_int8_enable;
   cuda_options.trt_engine_cache_enable = true;
