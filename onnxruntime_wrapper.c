@@ -651,8 +651,8 @@ OrtStatus *GetTensorMutableData(OrtValue *output, void *output_data)
 
   // copy tensor_data to output_data
 
-  printf("output_data: %f\n", ((float *)output_data)[0]);
-  printf("output_data: %f\n", ((float *)output_data)[1]);
+  // printf("output_data: %f\n", ((float *)output_data)[0]);
+  // printf("output_data: %f\n", ((float *)output_data)[1]);
   return status;
 }
 

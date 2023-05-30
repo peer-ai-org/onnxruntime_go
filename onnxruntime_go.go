@@ -693,7 +693,7 @@ func (s *SessionV2) RunV2(inputs []*TensorWithType, outputs []*TensorWithType) (
 		dataType := C.GetTensorElementType(s.outputs[i])
 
 		// switch
-		fmt.Printf("dataType: %v\n", dataType)
+		// fmt.Printf("dataType: %v\n", dataType)
 		switch dataType {
 		case C.ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
 			outputs[i].Tensor, err = GetTensor(s.outputs[i], elementCount, make([]float32, elementCount), shape)
