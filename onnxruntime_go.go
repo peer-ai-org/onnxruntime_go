@@ -572,10 +572,7 @@ func NewSessionV2(path string, opts ...string) (*SessionV2, error) {
 		// get device type from opts[0]
 		deviceType := opts[0]
 		if deviceType == "coreml" {
-			cFunctionName := C.CString("OrtSessionOptionsAppendExecutionProvider_CoreML")
-			defer C.free(unsafe.Pointer(cFunctionName))
-			appendOptionsProc := C.dlsym(libraryHandle, cFunctionName)
-			C.CallAppendOptionsFunction(appendOptionsProc, options)
+			SetupCoreMLExecutionProvider(options)
 		} else if deviceType == "cuda" {
 			// convert opts[0] from string to int
 			deviceInt, err := strconv.Atoi(opts[1])
@@ -763,49 +760,6 @@ func (s *SessionV2) Destroy() error {
 	s.inputs = nil
 	s.outputs = nil
 	return nil
-}
-
-// The same as NewSession, but takes a slice of bytes containing the .onnx
-// network rather than a file path.
-func NewSessionWithPathWithTypeWithCoreML(path string, inputNames,
-	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
-	if !IsInitialized() {
-		return nil, NotInitializedError
-	}
-
-	err := checkInputsOutputs(inputs, outputs, inputNames, outputNames)
-	if err != nil {
-		return nil, err
-	}
-
-	var ortSession *C.OrtSession
-	modelPath := C.CString(path)
-	defer C.free(unsafe.Pointer(modelPath))
-
-	options := C.CreateSessionOptions()
-	cFunctionName := C.CString("OrtSessionOptionsAppendExecutionProvider_CoreML")
-	defer C.free(unsafe.Pointer(cFunctionName))
-	appendOptionsProc := C.dlsym(libraryHandle, cFunctionName)
-	C.CallAppendOptionsFunction(appendOptionsProc, options)
-	// fmt.Printf("ortAPIBase: %v\n", ortAPIBase)
-
-	status := C.CreateSessionPathWithOptions(modelPath, ortEnv, &ortSession, options)
-	if status != nil {
-		return nil, fmt.Errorf("Error creating session: %w",
-			statusToError(status))
-	}
-	cInputNames := convertNames(inputNames)
-	cOutputNames := convertNames(outputNames)
-	inputOrtTensors := convertTensors(inputs)
-	outputOrtTensors := convertTensors(outputs)
-
-	return &Session{
-		ortSession:  ortSession,
-		inputNames:  cInputNames,
-		outputNames: cOutputNames,
-		inputs:      inputOrtTensors,
-		outputs:     outputOrtTensors,
-	}, nil
 }
 
 // The same as NewSession, but takes a slice of bytes containing the .onnx
