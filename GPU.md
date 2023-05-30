@@ -1,0 +1,1 @@
+sudo apt-get install libnvinfer-dev=8.5.3-1+cuda11.8 libnvinfer8=8.5.3-1+cuda11.8 libnvinfer-plugin8=8.5.3-1+cuda11.8 libnvinfer-plugin-dev=8.5.3-1+cuda11.8
