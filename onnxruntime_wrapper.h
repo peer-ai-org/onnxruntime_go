@@ -11,10 +11,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <dlfcn.h>
 
 #ifdef _WIN32
 #define _WIN32_SESSION
+#else
+#include <dlfcn.h>
 #endif
 
 // Next, we actually include the header.

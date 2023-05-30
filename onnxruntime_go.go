@@ -16,7 +16,6 @@ import (
 #cgo CFLAGS: -O2 -g
 #cgo LDFLAGS: -ldl
 
-#include <dlfcn.h>
 #include "onnxruntime_wrapper.h"
 typedef void (*AppendOptionsFunction)(OrtSessionOptions *options, uint32_t flags);
 
