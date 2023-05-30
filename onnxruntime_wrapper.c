@@ -102,8 +102,15 @@ OrtStatus *CreateSessionPathWithOptions(char *model_path,
   OrtStatus *status = NULL;
   if (status)
     return status;
+#ifdef _WIN32_SESSION
+  const wchar_t *model_path2 = GetWC(model_path);
+  status = ort_api->CreateSession(env, (ORTCHAR_T *)model_path2,
+                                  options, out);
+  free((void *)model_path2);
+#else
   status = ort_api->CreateSession(env, model_path,
                                   options, out);
+#endif
   // It's OK to release the session options now, right? The docs don't say.
   ort_api->ReleaseSessionOptions(options);
   return status;
