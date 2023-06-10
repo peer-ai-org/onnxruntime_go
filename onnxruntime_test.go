@@ -462,6 +462,20 @@ func floatsEqual(a, b []float32) error {
 	return nil
 }
 
+func intsEqual(a, b []int64) error {
+	if len(a) != len(b) {
+		return fmt.Errorf("Length mismatch: %d vs %d", len(a), len(b))
+	}
+	for i := range a {
+		diff := a[i] - b[i]
+		if diff > 0 {
+			return fmt.Errorf("Data element %d doesn't match: %v vs %v",
+				i, a[i], b[i])
+		}
+	}
+	return nil
+}
+
 func TestTensorTypes(t *testing.T) {
 	// It would be nice to compare this, but doing that would require exposing
 	// the underlying C types in Go; the testing package doesn't support cgo.
@@ -907,6 +921,97 @@ func TestExampleNetworkV2WithNull(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func TestRunV2Gen(t *testing.T) {
+	InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
+
+	// Create input and output tensors
+	// inputs := parseInputsJSON("test_data/example_network_results.json", t)
+	ins := make([]*TensorWithType, 26)
+	in0, e := NewTensor(Shape{1, 1},
+		makeRange[int64](0, int(1)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[0] = &TensorWithType{
+		Tensor:     in0,
+		TensorType: "int64",
+	}
+	defer in0.Destroy()
+	in1, e := NewTensor(Shape{1, 32, 768},
+		makeRange[float32](0, int(32*768)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[1] = &TensorWithType{
+		Tensor:     in1,
+		TensorType: "float32",
+	}
+	defer in1.Destroy()
+	// from 2 to 25
+	for i := 2; i < 26; i++ {
+		inputTensor, e := NewTensor(Shape{1, 12, 1, 64},
+			makeRange[float32](0, int(12*64)))
+		if e != nil {
+			t.Logf("Failed creating input tensor: %s\n", e)
+			t.FailNow()
+		}
+		defer inputTensor.Destroy()
+		ins[i] = &TensorWithType{
+			Tensor:     inputTensor,
+			TensorType: "float32",
+		}
+	}
+
+	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+	// if e != nil {
+	// 	t.Logf("Failed creating output tensor: %s\n", e)
+	// 	t.FailNow()
+	// }
+	// defer outputTensor.Destroy()
+
+	// Set up and run the session.
+	session, e := NewSessionV2("test_data/textgen.onnx")
+	if e != nil {
+		t.Logf("Failed creating session: %s\n", e)
+		t.FailNow()
+	}
+	defer session.Destroy()
+
+	outs := make([]*TensorWithType, 25)
+	for i := 0; i < 25; i++ {
+		outs[i] = &TensorWithType{
+			Tensor:     nil,
+			TensorType: "float32",
+		}
+	}
+	e = session.RunV2Gen(ins, outs, &RunV2GenOptions{
+		MaxTokens:  128,
+		EOSTokenID: 50256,
+	})
+	if e != nil {
+		t.Logf("Failed to run the session: %s\n", e)
+		t.FailNow()
+	}
+	outIds := outs[0].GetData().([]int64)
+	// fmt.Printf("outIds: %v\n", outIds)
+	correct := []int64{int64(220), int64(50256)}
+	e = intsEqual(outIds, correct)
+	if e != nil {
+		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+		t.FailNow()
+	}
+}
+
 func TestExampleNetworkV2CoreML(t *testing.T) {
 	InitONNXEnv(false)
 	defer func() {
@@ -1059,7 +1164,6 @@ func TestExampleNetworkV2TensorRT(t *testing.T) {
 		t.FailNow()
 	}
 }
-
 
 func TestExampleNetworkWithCUDA(t *testing.T) {
 	InitONNXEnv(true)
