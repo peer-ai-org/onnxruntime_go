@@ -165,7 +165,7 @@ func (s *SessionV2) RunV2Gen(inputs []*TensorWithType, outputs []*TensorWithType
 		if tokenId == opt.EOSTokenID {
 			break
 		}
-		if curTokens >= int(maxTokens) {
+		if curTokens >= int(maxTokens-1) {
 			break
 		}
 		data[0] = int64(tokenId)

@@ -995,8 +995,10 @@ func TestRunV2Gen(t *testing.T) {
 		}
 	}
 	e = session.RunV2Gen(ins, outs, &RunV2GenOptions{
-		MaxTokens:  128,
-		EOSTokenID: 50256,
+		MaxTokens:   1024,
+		EOSTokenID:  50256,
+		TopP:        1.0,
+		Temperature: 10,
 	})
 	if e != nil {
 		t.Logf("Failed to run the session: %s\n", e)
