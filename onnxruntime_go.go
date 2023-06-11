@@ -7,6 +7,7 @@ package onnxruntime_go
 import (
 	"fmt"
 	"strconv"
+
 	// "os"
 	// "github.com/ebitengine/purego"
 	"unsafe"
@@ -564,82 +565,6 @@ func (s *SessionV2) Run(inputs []*TensorWithType, outputs []*TensorWithType) err
 		s.inputCount, &s.outputs[0], s.outputNames, s.outputCount)
 	if status != nil {
 		return fmt.Errorf("Error running network: %w", statusToError(status))
-	}
-	return nil
-}
-
-type RunV2GenOptions struct {
-	MaxTokens  int
-	EOSTokenID int
-}
-
-func (s *SessionV2) RunV2Gen(inputs []*TensorWithType, outputs []*TensorWithType, opt *RunV2GenOptions) (err error) {
-	if opt == nil {
-		opt = &RunV2GenOptions{
-			MaxTokens:  128,
-			EOSTokenID: 50256,
-		}
-	}
-	maxTokens := opt.MaxTokens
-	curTokens := 0
-	outTokenIds := []int64{}
-	for {
-		curTokens += 1
-		// fmt.Printf("curTokens: %d\n", curTokens)
-		err = s.RunV2(inputs, outputs)
-		if err != nil {
-			return err
-		}
-		// greedily calculate argmax(outputs[0],dim=2)
-		// outputs[0].Tensor
-		// replace inputs[0] with outputs[0] argmax result
-		data := inputs[0].GetData().([]int64)
-		logits := outputs[0].GetData().([]float32)
-		// calculate argmax(logits)
-		max := logits[0]
-		maxIndex := 0
-		for i, v := range logits {
-			if v > max {
-				max = v
-				maxIndex = i
-			}
-		}
-		outTokenIds = append(outTokenIds, int64(maxIndex))
-		// fmt.Printf("maxIndex: %d\n", maxIndex)
-		if maxIndex == 50256 {
-			break
-		}
-		if curTokens >= int(maxTokens) {
-			break
-		}
-		data[0] = int64(maxIndex)
-		s := inputs[0].GetShape()
-		tensor, err := NewTensor(s, data)
-		if err != nil {
-			return err
-		}
-		inputs[0].Destroy()
-		inputs[0] = &TensorWithType{
-			Tensor:     tensor,
-			TensorType: "int64",
-		}
-		// release and replace inputs[2:end] with outputs[1:end]
-		for j := 1; j < len(outputs); j++ {
-			inputs[j+1].Destroy()
-			inputs[j+1] = outputs[j]
-		}
-	}
-	outputs[0].Destroy()
-	outT, err := NewTensor(NewShape(1, int64(len(outTokenIds))), outTokenIds)
-	if err != nil {
-		return err
-	}
-	outputs[0] = &TensorWithType{
-		Tensor:     outT,
-		TensorType: "int64",
-	}
-	for j := 1; j < len(outputs); j++ {
-		outputs[j].Destroy()
 	}
 	return nil
 }
