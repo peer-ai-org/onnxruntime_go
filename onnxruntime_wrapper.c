@@ -281,7 +281,7 @@ IONames GetIONames(const OrtSession *session)
     switch (type)
     {
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-      strcpy(input_types[i], "float");
+      strcpy(input_types[i], "float32");
       break;
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
       strcpy(input_types[i], "uint8");
@@ -525,7 +525,7 @@ IONames GetIONames(const OrtSession *session)
     switch (output_type)
     {
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-      strcpy(output_types[i], "float");
+      strcpy(output_types[i], "float32");
       break;
     case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
       strcpy(output_types[i], "uint8");

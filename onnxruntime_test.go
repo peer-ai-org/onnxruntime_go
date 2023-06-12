@@ -1063,6 +1063,98 @@ func TestExampleNetworkV3WithNull(t *testing.T) {
 	}
 }
 
+func TestV3GetShapes(t *testing.T) {
+	InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
+
+	// Create input and output tensors
+	inputs := parseInputsJSON("test_data/example_network_results.json", t)
+	inputTensor, e := NewTensor(Shape(inputs.InputShape),
+		inputs.FlattenedInput)
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	defer inputTensor.Destroy()
+	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+	// if e != nil {
+	// 	t.Logf("Failed creating output tensor: %s\n", e)
+	// 	t.FailNow()
+	// }
+	// defer outputTensor.Destroy()
+
+	// Set up and run the session.
+	session, e := NewSessionV3("test_data/example_network.onnx")
+	if e != nil {
+		t.Logf("Failed creating session: %s\n", e)
+		t.FailNow()
+	}
+	defer session.Destroy()
+
+	inpShapes := session.GetInputShapes()
+	fmt.Printf("inpShapes: %v\n", inpShapes)
+	outShapes := session.GetOutputShapes()
+	fmt.Printf("outShapes: %v\n", outShapes)
+
+	// check if [{[1 1 4] [  ] float}] == inpShapes
+	if len(inpShapes) != 1 {
+		t.Logf("Expected 1 input shape, got %d\n", len(inpShapes))
+		t.FailNow()
+	}
+	if len(inpShapes[0].Shape) != 3 {
+		t.Logf("Expected 3 dimensions, got %d\n", len(inpShapes[0].Shape))
+		t.FailNow()
+	}
+	if inpShapes[0].Shape[0] != 1 {
+		t.Logf("Expected 1st dimension to be 1, got %d\n", inpShapes[0].Shape[0])
+		t.FailNow()
+	}
+	if inpShapes[0].Shape[1] != 1 {
+		t.Logf("Expected 2nd dimension to be 1, got %d\n", inpShapes[0].Shape[1])
+		t.FailNow()
+	}
+	if inpShapes[0].Shape[2] != 4 {
+		t.Logf("Expected 3rd dimension to be 4, got %d\n", inpShapes[0].Shape[2])
+		t.FailNow()
+	}
+	if inpShapes[0].Type != "float32" {
+		t.Logf("Expected data type to be float32, got %s\n", inpShapes[0].Type)
+		t.FailNow()
+	}
+
+	// check if [{[1 1 2] [  ] float}] == outShapes
+	if len(outShapes) != 1 {
+		t.Logf("Expected 1 output shape, got %d\n", len(outShapes))
+		t.FailNow()
+	}
+	if len(outShapes[0].Shape) != 3 {
+		t.Logf("Expected 3 dimensions, got %d\n", len(outShapes[0].Shape))
+		t.FailNow()
+	}
+	if outShapes[0].Shape[0] != 1 {
+		t.Logf("Expected 1st dimension to be 1, got %d\n", outShapes[0].Shape[0])
+		t.FailNow()
+	}
+	if outShapes[0].Shape[1] != 1 {
+		t.Logf("Expected 2nd dimension to be 1, got %d\n", outShapes[0].Shape[1])
+		t.FailNow()
+	}
+	if outShapes[0].Shape[2] != 2 {
+		t.Logf("Expected 3rd dimension to be 2, got %d\n", outShapes[0].Shape[2])
+		t.FailNow()
+	}
+	if outShapes[0].Type != "float32" {
+		t.Logf("Expected data type to be float32, got %s\n", outShapes[0].Type)
+		t.FailNow()
+	}
+}
+
 func TestRunV3Gen(t *testing.T) {
 	InitONNXEnv(false)
 	defer func() {
