@@ -132,6 +132,94 @@ func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
 	}, nil
 }
 
+func convertCStrings(cStrings **C.char, count int) []string {
+	var result = make([]string, count)
+	// Calculate the size of a pointer in bytes
+	size := unsafe.Sizeof(cStrings)
+	for i := 0; i < count; i++ {
+		// Calculate the pointer to the i-th C string
+		cstr := (**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(cStrings)) + uintptr(i)*size))
+		// Convert the C string to a Go string
+		str := C.GoString(*cstr)
+		result[i] = str
+	}
+	return result
+}
+
+func convertShape(cShapes **C.int64_t, cShapeCounts *C.int64_t, index int) []int64 {
+	cShape := (*[1 << 30]*C.int64_t)(unsafe.Pointer(cShapes))
+	cArray := (*[1 << 30]C.int64_t)(unsafe.Pointer(cShape[index]))
+
+	cShapeCount := (*[1 << 30]C.int64_t)(unsafe.Pointer(cShapeCounts))
+
+	dims := int(cShapeCount[index])
+	shape := make([]int64, dims)
+	for i := 0; i < dims; i++ {
+		shape[i] = int64(cArray[i])
+	}
+	return shape
+}
+
+func convertSymbolicShape(cShapes ***C.char, cShapeCounts *C.int64_t, index int) []string {
+	cShape := (*[1 << 30]*C.char)(unsafe.Pointer(cShapes))
+	cArray := (*[1 << 30]*C.char)(unsafe.Pointer(cShape[index]))
+
+	cShapeCount := (*[1 << 30]C.int64_t)(unsafe.Pointer(cShapeCounts))
+
+	dims := int(cShapeCount[index])
+	shape := make([]string, dims)
+	for i := 0; i < dims; i++ {
+		shape[i] = C.GoString(cArray[i])
+	}
+	return shape
+}
+
+func (s *SessionV3) GetInputTypes() []string {
+	return convertCStrings(s.inputTypes, int(s.inputCount))
+}
+
+type ShapeType struct {
+	Shape         []int64
+	SymbolicShape []string
+	Type          string
+}
+
+func (s *SessionV3) GetInputShapes() (shapeTypes []ShapeType) {
+	shapeTypes = make([]ShapeType, s.inputCount)
+	size := unsafe.Sizeof(s.inputTypes)
+	for i := 0; i < int(s.inputCount); i++ {
+
+		typeStr := (**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(s.inputTypes)) + uintptr(i)*size))
+
+		shapeTypes[i] = ShapeType{
+			Shape:         convertShape(s.inputShapes, s.inputShapesCount, i),
+			SymbolicShape: convertSymbolicShape(s.inputSymbolicShapes, s.inputShapesCount, i),
+			Type:          C.GoString(*typeStr),
+		}
+	}
+	return
+}
+
+func (s *SessionV3) GetOutputTypes() []string {
+	return convertCStrings(s.outputTypes, int(s.outputCount))
+}
+
+func (s *SessionV3) GetOutputShapes() (shapeTypes []ShapeType) {
+	shapeTypes = make([]ShapeType, s.outputCount)
+	size := unsafe.Sizeof(s.outputTypes)
+
+	for i := 0; i < int(s.outputCount); i++ {
+		typeStr := (**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(s.outputTypes)) + uintptr(i)*size))
+
+		shapeTypes[i] = ShapeType{
+			Shape:         convertShape(s.outputShapes, s.outputShapesCount, i),
+			SymbolicShape: convertSymbolicShape(s.outputSymbolicShapes, s.outputShapesCount, i),
+			Type:          C.GoString(*typeStr),
+		}
+	}
+	return
+}
+
 func (s *SessionV3) Run(inputs []*TensorWithType) (outputs []*TensorWithType, err error) {
 
 	s.inputs = convertTensors(inputs)
