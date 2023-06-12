@@ -116,6 +116,19 @@ OrtStatus *CreateSessionPathWithOptions(char *model_path,
   return status;
 }
 
+//*****************************************************************************
+// helper function to check for status
+OrtStatus *CheckStatus(OrtStatus *status)
+{
+  if (status != NULL)
+  {
+    const char *error_message = ort_api->GetErrorMessage(status);
+    printf("Error message: %s\n", error_message);
+    ort_api->ReleaseStatus(status);
+  }
+  return status;
+}
+
 IONames GetIONames(const OrtSession *session)
 {
   IONames result;
@@ -123,6 +136,14 @@ IONames GetIONames(const OrtSession *session)
   result.output_names = NULL;
   result.input_count = 0;
   result.output_count = 0;
+  result.input_types = NULL;
+  result.output_types = NULL;
+  result.input_shapes = NULL;
+  result.output_shapes = NULL;
+  result.input_symbolic_shapes = NULL;
+  result.output_symbolic_shapes = NULL;
+  result.input_shapes_count = NULL;
+  result.output_shapes_count = NULL;
 
   OrtStatus *status;
   OrtMemoryInfo *memory_info;
@@ -158,6 +179,18 @@ IONames GetIONames(const OrtSession *session)
   // printf("Input count: %zu\n", input_count);
 
   char **input_names = (char **)malloc(input_count * sizeof(char *));
+
+  char **input_types = (char **)malloc(input_count * sizeof(char *));
+  int64_t **input_shapes = (int64_t **)malloc(input_count * sizeof(int64_t *));
+  char ***input_symbolic_shapes = (char ***)malloc(input_count * sizeof(char **));
+  int64_t *input_shapes_count = (int64_t *)malloc(input_count * sizeof(int64_t));
+
+  // get input types
+  // enum ONNXTensorElementDataType *input_types = (enum ONNXTensorElementDataType *)malloc(input_count * sizeof(enum ONNXTensorElementDataType));
+
+  // get input dims
+  // int64_t **input_shapes = (int64_t **)malloc(input_count * sizeof(int64_t *));
+
   for (int i = 0; i < input_count; i++)
   {
     char *input_name;
@@ -168,6 +201,10 @@ IONames GetIONames(const OrtSession *session)
       printf("Failed to get input name at index %d: %s\n", i, error_message);
       ort_api->ReleaseStatus(status);
       free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
       return result;
     }
 
@@ -183,9 +220,196 @@ IONames GetIONames(const OrtSession *session)
       const char *error_message = ort_api->GetErrorMessage(status);
       printf("Failed to free input name at index %d: %s\n", i, error_message);
       ort_api->ReleaseStatus(status);
+      // free input_names[i]
+      free(input_names[i]);
       free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
       return result;
     }
+
+    OrtTypeInfo *typeinfo;
+    status = ort_api->SessionGetInputTypeInfo(session, i, &typeinfo);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get input type info at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(input_names[i]);
+      free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
+      return result;
+    }
+    const OrtTensorTypeAndShapeInfo *tensor_info;
+    status = ort_api->CastTypeInfoToTensorInfo(typeinfo, &tensor_info);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get input tensor info at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(input_names[i]);
+      free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
+      return result;
+    }
+    ONNXTensorElementDataType type;
+    status = ort_api->GetTensorElementType(tensor_info, &type);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get input tensor element type at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(input_names[i]);
+      free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
+      return result;
+    }
+    // printf("Input %d : type=%d\n", i, type);
+
+    input_types[i] = (char *)malloc(10 * sizeof(char));
+    switch (type)
+    {
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
+      strcpy(input_types[i], "float");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+      strcpy(input_types[i], "uint8");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
+      strcpy(input_types[i], "int8");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+      strcpy(input_types[i], "uint16");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
+      strcpy(input_types[i], "int16");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+      strcpy(input_types[i], "int32");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+      strcpy(input_types[i], "int64");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING:
+      strcpy(input_types[i], "string");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+      strcpy(input_types[i], "bool");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
+      strcpy(input_types[i], "float16");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
+      strcpy(input_types[i], "double");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
+      strcpy(input_types[i], "uint32");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
+      strcpy(input_types[i], "uint64");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
+      strcpy(input_types[i], "complex64");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
+      strcpy(input_types[i], "complex128");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
+      strcpy(input_types[i], "bfloat16");
+      break;
+    default:
+      strcpy(input_types[i], "unknown");
+      break;
+    }
+
+    // print input shapes/dims
+    size_t num_dims;
+    status = ort_api->GetDimensionsCount(tensor_info, &num_dims);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get input dimensions count at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(input_types[i]);
+      free(input_names[i]);
+      free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
+      return result;
+    }
+    // printf("Input %d : num_dims=%zu\n", i, num_dims);
+    input_shapes_count[i] = num_dims;
+
+    // get symbolic dimensions GetSymbolicDimensions
+    const char **dim_params = (const char **)malloc(num_dims * sizeof(char *));
+    status = ort_api->GetSymbolicDimensions(tensor_info, dim_params, num_dims);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get input symbolic dimensions at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(dim_params);
+      free(input_types[i]);
+      free(input_names[i]);
+      free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
+      return result;
+    }
+    input_symbolic_shapes[i] = (char**)dim_params;
+
+    int64_t *input_node_dims = (int64_t *)malloc(num_dims * sizeof(int64_t));
+    status = ort_api->GetDimensions(tensor_info, input_node_dims, num_dims);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get input dimensions at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(dim_params);
+      free(input_node_dims);
+      free(input_types[i]);
+      free(input_names[i]);
+      free(input_names); // Free the previously allocated names
+      free(input_types);
+      free(input_shapes);
+      free(input_symbolic_shapes);
+      free(input_shapes_count);
+      return result;
+    }
+
+    input_shapes[i] = input_node_dims;
+
+    // print dim_params
+    // for (size_t j = 0; j < num_dims; j++)
+    // {
+    //   // check if strlen dim_params[j] == 0
+    //   if (strlen(dim_params[j]) == 0)
+    //   {
+    //     printf("Input %zu : dim %zu=%jd\n", i, j, input_node_dims[j]);
+    //   }
+    //   else
+    //   {
+    //     printf("Input %zu : dim %zu=%s\n", i, j, dim_params[j]);
+    //   }
+    // }
+
+    // ort_api->ReleaseTensorTypeAndShapeInfo(tensor_info);
+    ort_api->ReleaseTypeInfo(typeinfo);
   }
 
   size_t output_count;
@@ -201,6 +425,12 @@ IONames GetIONames(const OrtSession *session)
   // printf("Output count: %zu\n", output_count);
 
   char **output_names = (char **)malloc(output_count * sizeof(char *));
+
+  char **output_types = (char **)malloc(output_count * sizeof(char *));
+  char ***output_symbolic_shapes = (char ***)malloc(output_count * sizeof(char **));
+  int64_t **output_shapes = (int64_t **)malloc(output_count * sizeof(int64_t *));
+  int64_t *output_shapes_count = (int64_t *)malloc(output_count * sizeof(int64_t));
+
   for (int i = 0; i < output_count; i++)
   {
     char *output_name;
@@ -211,6 +441,10 @@ IONames GetIONames(const OrtSession *session)
       printf("Failed to get output name at index %d: %s\n", i, error_message);
       ort_api->ReleaseStatus(status);
       free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
       return result;
     }
 
@@ -226,9 +460,200 @@ IONames GetIONames(const OrtSession *session)
       const char *error_message = ort_api->GetErrorMessage(status);
       printf("Failed to free output name at index %d: %s\n", i, error_message);
       ort_api->ReleaseStatus(status);
+      free(output_names[i]);
       free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
       return result;
     }
+
+    // get output type info
+    OrtTypeInfo *typeinfo;
+    status = ort_api->SessionGetOutputTypeInfo(session, i, &typeinfo);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get output type info at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(output_names[i]);
+      free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
+      return result;
+    }
+
+    // get output tensor info
+    const OrtTensorTypeAndShapeInfo *tensor_info;
+    status = ort_api->CastTypeInfoToTensorInfo(typeinfo, &tensor_info);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to cast output type info to tensor info at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(output_names[i]);
+      free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
+      return result;
+    }
+
+    // get output type
+    ONNXTensorElementDataType output_type;
+    status = ort_api->GetTensorElementType(tensor_info, &output_type);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get output type at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(output_names[i]);
+      free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
+      return result;
+    }
+
+    // printf("Output %d : type=%d\n", i, output_type);
+    output_types[i] = (char *)malloc(10);
+    switch (output_type)
+    {
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
+      strcpy(output_types[i], "float");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+      strcpy(output_types[i], "uint8");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
+      strcpy(output_types[i], "int8");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+      strcpy(output_types[i], "uint16");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
+      strcpy(output_types[i], "int16");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+      strcpy(output_types[i], "int32");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+      strcpy(output_types[i], "int64");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING:
+      strcpy(output_types[i], "string");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+      strcpy(output_types[i], "bool");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
+      strcpy(output_types[i], "float16");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
+      strcpy(output_types[i], "double");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
+      strcpy(output_types[i], "uint32");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
+      strcpy(output_types[i], "uint64");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
+      strcpy(output_types[i], "complex64");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
+      strcpy(output_types[i], "complex128");
+      break;
+    case ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
+      strcpy(output_types[i], "bfloat16");
+      break;
+    default:
+      strcpy(output_types[i], "unknown");
+      break;
+    }
+
+    // get output shape
+    size_t output_dims_count;
+    status = ort_api->GetDimensionsCount(tensor_info, &output_dims_count);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get output shape count at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(output_types[i]);
+      free(output_names[i]);
+      free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
+      return result;
+    }
+    output_shapes_count[i] = output_dims_count;
+
+    // get symbolic dimensions GetSymbolicDimensions
+    const char **dim_params = (const char **)malloc(output_dims_count * sizeof(char *));
+    status = ort_api->GetSymbolicDimensions(tensor_info, dim_params, output_dims_count);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get input symbolic dimensions at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(dim_params);
+      free(output_types[i]);
+      free(output_names[i]);
+      free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
+      return result;
+    }
+
+    output_symbolic_shapes[i] = (char**)dim_params;
+
+    int64_t *output_node_dims = (int64_t *)malloc(output_dims_count * sizeof(int64_t));
+    status = ort_api->GetDimensions(tensor_info, output_node_dims, output_dims_count);
+    if (status != NULL)
+    {
+      const char *error_message = ort_api->GetErrorMessage(status);
+      printf("Failed to get output shape at index %d: %s\n", i, error_message);
+      ort_api->ReleaseStatus(status);
+      free(dim_params);
+      free(output_node_dims);
+      free(output_types[i]);
+      free(output_names[i]);
+      free(output_names); // Free the previously allocated names
+      free(output_types);
+      free(output_shapes);
+      free(output_symbolic_shapes);
+      free(output_shapes_count);
+      return result;
+    }
+
+    output_shapes[i] = output_node_dims;
+
+    // print dim_params
+    // for (size_t j = 0; j < output_dims_count; j++)
+    // {
+    //   // check if strlen dim_params[j] == 0
+    //   if (strlen(dim_params[j]) == 0)
+    //   {
+    //     printf("Output %zu : dim %zu=%jd\n", i, j, output_node_dims[j]);
+    //   }
+    //   else
+    //   {
+    //     printf("Output %zu : dim %zu=%s\n", i, j, dim_params[j]);
+    //   }
+    // }
+
+    // ort_api->ReleaseTensorTypeAndShapeInfo(tensor_info);
+    ort_api->ReleaseTypeInfo(typeinfo);
   }
 
   ort_api->ReleaseMemoryInfo(memory_info);
@@ -238,7 +663,60 @@ IONames GetIONames(const OrtSession *session)
   result.output_names = output_names;
   result.input_count = input_count;
   result.output_count = output_count;
+  result.input_types = input_types;
+  result.output_types = output_types;
+  result.input_shapes = input_shapes;
+  result.output_shapes = output_shapes;
+  result.input_symbolic_shapes = input_symbolic_shapes;
+  result.output_symbolic_shapes = output_symbolic_shapes;
+  result.input_shapes_count = input_shapes_count;
+  result.output_shapes_count = output_shapes_count;
+
   return result;
+}
+
+void FreeShapesCount(int64_t *counts)
+{
+  if (counts != NULL)
+  {
+    free(counts);
+  }
+}
+
+void FreeTypes(char **types, int count)
+{
+  if (types != NULL)
+  {
+    for (int i = 0; i < count; i++)
+    {
+      free(types[i]);
+    }
+    free(types);
+  }
+}
+
+void FreeShapes(int64_t **shapes, int count)
+{
+  if (shapes != NULL)
+  {
+    for (int i = 0; i < count; i++)
+    {
+      free(shapes[i]);
+    }
+    free(shapes);
+  }
+}
+
+void FreeSymbolicShapes(char ***shapes, int count)
+{
+  if (shapes != NULL)
+  {
+    for (int i = 0; i < count; i++)
+    {
+      free(shapes[i]);
+    }
+    free(shapes);
+  }
 }
 
 void FreeNames(char **names, int count)
@@ -293,7 +771,7 @@ OrtStatus *AppendExecutionProvider_TensorRT(OrtSessionOptions *options, int cuda
   OrtStatus *status = NULL;
   OrtTensorRTProviderOptions cuda_options;
   cuda_options.device_id = cuda_device_id;
-  cuda_options.trt_max_workspace_size = 3*2147483648; // 6GB
+  cuda_options.trt_max_workspace_size = 3 * 2147483648; // 6GB
   cuda_options.trt_fp16_enable = trt_fp16_enable;
   cuda_options.trt_int8_enable = trt_int8_enable;
   cuda_options.trt_engine_cache_enable = true;

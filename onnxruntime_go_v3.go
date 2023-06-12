@@ -29,6 +29,16 @@ type SessionV3 struct {
 
 	inputCount  C.int
 	outputCount C.int
+
+	inputTypes           **C.char
+	inputShapes          **C.int64_t
+	inputSymbolicShapes  ***C.char
+	inputShapesCount     *C.int64_t
+	outputTypes          **C.char
+	outputShapes         **C.int64_t
+	outputSymbolicShapes ***C.char
+	outputShapesCount    *C.int64_t
+
 	// We only actually keep around the OrtValue pointers from the tensors.
 	inputs  []*C.OrtValue
 	outputs []*C.OrtValue
@@ -97,12 +107,26 @@ func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
 	// inputOrtTensors := convertTensors(inputs)
 	// outputOrtTensors := convertTensors(outputs)
 
+	// convert cgo to c variables
+	// char** input_types;
+	// int** input_shapes;
+	// char*** input_symbolic_shapes;
+
 	return &SessionV3{
-		ortSession:  ortSession,
-		inputNames:  cNames.input_names,
-		outputNames: cNames.output_names,
-		inputCount:  cNames.input_count,
-		outputCount: cNames.output_count,
+		ortSession:           ortSession,
+		inputNames:           cNames.input_names,
+		outputNames:          cNames.output_names,
+		inputCount:           cNames.input_count,
+		outputCount:          cNames.output_count,
+		inputTypes:           cNames.input_types,
+		inputShapes:          cNames.input_shapes,
+		inputSymbolicShapes:  cNames.input_symbolic_shapes,
+		inputShapesCount:     cNames.input_shapes_count,
+		outputTypes:          cNames.output_types,
+		outputShapes:         cNames.output_shapes,
+		outputSymbolicShapes: cNames.output_symbolic_shapes,
+		outputShapesCount:    cNames.output_shapes_count,
+
 		// inputs:      inputOrtTensors,
 		// outputs:     outputOrtTensors,
 	}, nil
@@ -214,10 +238,32 @@ func (s *SessionV3) Destroy() error {
 	}
 	C.FreeNames(s.inputNames, s.inputCount)
 	C.FreeNames(s.outputNames, s.outputCount)
+	C.FreeSymbolicShapes(s.inputSymbolicShapes, s.inputCount)
+	C.FreeSymbolicShapes(s.outputSymbolicShapes, s.outputCount)
+	C.FreeTypes(s.inputTypes, s.inputCount)
+	C.FreeTypes(s.outputTypes, s.outputCount)
+	C.FreeShapes(s.inputShapes, s.inputCount)
+	C.FreeShapes(s.outputShapes, s.outputCount)
+	C.FreeShapesCount(s.inputShapesCount)
+	C.FreeShapesCount(s.outputShapesCount)
+
+	// 	void FreeShapeCounts(int64_t *counts);
+	// void FreeTypes(char **types, int count);
+	// void FreeShapes(int64_t **shapes, int count);
+	// void FreeSymbolicShapes(char ***shapes, int64_t* counts, int count);
+
 	s.inputCount = 0
 	s.outputCount = 0
 	s.inputNames = nil
 	s.outputNames = nil
+	s.inputTypes = nil
+	s.outputTypes = nil
+	s.inputShapes = nil
+	s.outputShapes = nil
+	s.inputSymbolicShapes = nil
+	s.outputSymbolicShapes = nil
+	s.inputShapesCount = nil
+	s.outputShapesCount = nil
 	s.inputs = nil
 	s.outputs = nil
 	return nil

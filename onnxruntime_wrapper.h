@@ -74,11 +74,24 @@ OrtStatus *AppendExecutionProvider_TensorRT(OrtSessionOptions *options, int cuda
 typedef struct {
     char** input_names;
     int input_count;
+    char** input_types;
+    int64_t** input_shapes;
+    int64_t* input_shapes_count;
+    char*** input_symbolic_shapes;
     char** output_names;
     int output_count;
+    char** output_types;
+    int64_t** output_shapes;
+    int64_t* output_shapes_count;
+    char*** output_symbolic_shapes;
 } IONames;
+
 IONames GetIONames(const OrtSession* session);
 void FreeNames(char** names, int count);
+void FreeShapesCount(int64_t *counts);
+void FreeTypes(char **types, int count);
+void FreeShapes(int64_t **shapes, int count);
+void FreeSymbolicShapes(char ***shapes, int count);
 
 size_t GetTensorElementCount(OrtValue *value);
 size_t GetTensorNumDimensions(OrtValue *value);
