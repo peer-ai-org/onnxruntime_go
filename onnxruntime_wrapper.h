@@ -91,7 +91,7 @@ void FreeNames(char** names, int count);
 void FreeShapesCount(int64_t *counts);
 void FreeTypes(char **types, int count);
 void FreeShapes(int64_t **shapes, int count);
-void FreeSymbolicShapes(char ***shapes, int count);
+void FreeSymbolicShapes(char ***shapes, int64_t *counts, int count);
 
 size_t GetTensorElementCount(OrtValue *value);
 size_t GetTensorNumDimensions(OrtValue *value);

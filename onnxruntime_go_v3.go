@@ -326,8 +326,8 @@ func (s *SessionV3) Destroy() error {
 	}
 	C.FreeNames(s.inputNames, s.inputCount)
 	C.FreeNames(s.outputNames, s.outputCount)
-	C.FreeSymbolicShapes(s.inputSymbolicShapes, s.inputCount)
-	C.FreeSymbolicShapes(s.outputSymbolicShapes, s.outputCount)
+	C.FreeSymbolicShapes(s.inputSymbolicShapes, s.inputShapesCount, s.inputCount)
+	C.FreeSymbolicShapes(s.outputSymbolicShapes, s.outputShapesCount, s.outputCount)
 	C.FreeTypes(s.inputTypes, s.inputCount)
 	C.FreeTypes(s.outputTypes, s.outputCount)
 	C.FreeShapes(s.inputShapes, s.inputCount)

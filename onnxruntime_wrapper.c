@@ -371,7 +371,15 @@ IONames GetIONames(const OrtSession *session)
       free(input_shapes_count);
       return result;
     }
-    input_symbolic_shapes[i] = (char**)dim_params;
+    // copy dim_params in to input_symbolic_shapes
+    input_symbolic_shapes[i] = (char **)malloc(num_dims * sizeof(char *));
+    for (size_t j = 0; j < num_dims; j++)
+    {
+      // printf("Input %d : dim %zu = %s\n", i, j, dim_params[j]);
+      input_symbolic_shapes[i][j] = (char *)malloc(strlen(dim_params[j]) + 1);
+      strcpy(input_symbolic_shapes[i][j], dim_params[j]);
+    }
+    // input_symbolic_shapes[i] = (char**)dim_params;
 
     int64_t *input_node_dims = (int64_t *)malloc(num_dims * sizeof(int64_t));
     status = ort_api->GetDimensions(tensor_info, input_node_dims, num_dims);
@@ -614,8 +622,15 @@ IONames GetIONames(const OrtSession *session)
       free(output_shapes_count);
       return result;
     }
+    // copy dim_params in to output_symbolic_shapes
+    output_symbolic_shapes[i] = (char **)malloc(output_dims_count * sizeof(char *));
+    for (int j = 0; j < output_dims_count; j++)
+    {
+      output_symbolic_shapes[i][j] = (char *)malloc(strlen(dim_params[j]) + 1);
+      strcpy(output_symbolic_shapes[i][j], dim_params[j]);
+    }
 
-    output_symbolic_shapes[i] = (char**)dim_params;
+    // output_symbolic_shapes[i] = (char**)dim_params;
 
     int64_t *output_node_dims = (int64_t *)malloc(output_dims_count * sizeof(int64_t));
     status = ort_api->GetDimensions(tensor_info, output_node_dims, output_dims_count);
@@ -707,12 +722,16 @@ void FreeShapes(int64_t **shapes, int count)
   }
 }
 
-void FreeSymbolicShapes(char ***shapes, int count)
+void FreeSymbolicShapes(char ***shapes, int64_t *counts, int count)
 {
   if (shapes != NULL)
   {
     for (int i = 0; i < count; i++)
     {
+      for (int j = 0; j < counts[i]; j++)
+      {
+        free(shapes[i][j]);
+      }
       free(shapes[i]);
     }
     free(shapes);
