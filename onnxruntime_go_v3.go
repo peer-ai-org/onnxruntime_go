@@ -178,6 +178,10 @@ func (s *SessionV3) GetInputTypes() []string {
 	return convertCStrings(s.inputTypes, int(s.inputCount))
 }
 
+func (s *SessionV3) GetInputNames() []string {
+	return convertCStrings(s.inputNames, int(s.inputCount))
+}
+
 type ShapeType struct {
 	Shape         []int64
 	SymbolicShape []string
@@ -202,6 +206,10 @@ func (s *SessionV3) GetInputShapes() (shapeTypes []ShapeType) {
 
 func (s *SessionV3) GetOutputTypes() []string {
 	return convertCStrings(s.outputTypes, int(s.outputCount))
+}
+
+func (s *SessionV3) GetOutputNames() []string {
+	return convertCStrings(s.outputNames, int(s.outputCount))
 }
 
 func (s *SessionV3) GetOutputShapes() (shapeTypes []ShapeType) {
