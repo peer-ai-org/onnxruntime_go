@@ -261,11 +261,15 @@ func (s *SessionV3) Run(inputs []*TensorWithType) (outputs []*TensorWithType, er
 		elementCount := int64(1)
 		for j := 0; j < numDims; j++ {
 			shape[j] = int64(C.GetTensorDimensions(s.outputs[i], C.size_t(j)))
+			// fmt.Printf("shape[j]: %v\n", shape[j])
 			elementCount *= shape[j]
 		}
-
-		// fmt.Printf("elementCount: %v\n", elementCount)
+		// fmt.Printf("i,elementCount,numDims:%v,%v,%v\n", i, elementCount, numDims)
 		// shape := make([]int64, 4)
+
+		if elementCount == 0 {
+			continue
+		}
 
 		// get data type
 		dataType := C.GetTensorElementType(s.outputs[i])
@@ -407,12 +411,32 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 		opt.ReplacementIndexes = indexes
 	}
 
+	// run the use_cache_branch == false first
+	// then run the use_cache_branch == true
 	maxTokens := opt.MaxTokens
 	curTokens := 0
 	outTokenIds := []int64{}
 	for {
+		if curTokens == 1 {
+			lastIdx := len(inputs) - 1
+			// log
+			fmt.Println("lastIdx", lastIdx, "curTokens", curTokens)
+
+			// replace the last item of inputs with bool false
+			s := inputs[lastIdx].GetShape()
+			tensor, err := NewTensor(s, []bool{true})
+			if err != nil {
+				return nil, err
+			}
+			inputs[lastIdx].Destroy()
+			inputs[lastIdx] = &TensorWithType{
+				Tensor:     tensor,
+				TensorType: "bool",
+			}
+		}
 		curTokens += 1
 		// fmt.Printf("curTokens: %d\n", curTokens)
+		// fmt.Printf("inputs: %v\n", inputs)
 		outputs, err = s.Run(inputs)
 		if err != nil {
 			return nil, err
@@ -462,7 +486,7 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 		if err != nil {
 			return nil, err
 		}
-		defer inputs[0].Destroy()
+		inputs[0].Destroy()
 		inputs[0] = &TensorWithType{
 			Tensor:     tensor,
 			TensorType: "int64",
@@ -470,15 +494,19 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 		// release and replace inputs[opt.ReplacementIndexes] with outputs[1:end]
 		j := 1
 		for _, i := range opt.ReplacementIndexes {
-			defer inputs[i].Destroy()
-			inputs[i] = &TensorWithType{
-				Tensor:     outputs[j].Tensor,
-				TensorType: outputs[j].TensorType,
+			// os := outputs[j].GetShape()
+			// fmt.Printf("outputs[%d].GetShape(): %v\n", j, os)
+			if outputs[j].Tensor != nil {
+				inputs[i].Destroy()
+				inputs[i] = &TensorWithType{
+					Tensor:     outputs[j].Tensor,
+					TensorType: outputs[j].TensorType,
+				}
 			}
 			j += 1
 		}
 	}
-	defer outputs[0].Destroy()
+	outputs[0].Destroy()
 	outT, err := NewTensor(NewShape(1, int64(len(outTokenIds))), outTokenIds)
 	if err != nil {
 		return nil, err
@@ -488,7 +516,7 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 		TensorType: "int64",
 	}
 	for j := 1; j < len(outputs); j++ {
-		defer outputs[j].Destroy()
+		outputs[j].Destroy()
 	}
 	return
 }
