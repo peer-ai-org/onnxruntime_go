@@ -6,7 +6,7 @@ package onnxruntime_go
 
 import (
 	"fmt"
-	"math"
+	// "math"
 	"strconv"
 	"unsafe"
 	// "strconv"
