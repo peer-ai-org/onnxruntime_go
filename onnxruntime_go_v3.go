@@ -6,6 +6,7 @@ package onnxruntime_go
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"unsafe"
 	// "strconv"
@@ -42,6 +43,29 @@ type SessionV3 struct {
 	// We only actually keep around the OrtValue pointers from the tensors.
 	inputs  []*C.OrtValue
 	outputs []*C.OrtValue
+}
+
+func Reshape(data []float64, shape []int64) [][]float64 {
+	totalSize := int64(1)
+	for _, dim := range shape {
+		totalSize *= dim
+	}
+
+	if totalSize != int64(len(data)) {
+		panic("Input data size does not match the specified shape")
+	}
+
+	result := make([][]float64, shape[0])
+	stride := totalSize / shape[0]
+	remainingData := data
+
+	for i := int64(0); i < shape[0]; i++ {
+		result[i] = make([]float64, stride)
+		copy(result[i], remainingData[:stride])
+		remainingData = remainingData[stride:]
+	}
+
+	return result
 }
 
 func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
@@ -375,6 +399,7 @@ type RunV3GenOptions struct {
 	Temperature        float64
 	EOSTokenID         int
 	ReplacementIndexes []int
+	AttentionMaskIndex int
 }
 
 func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outputs []*TensorWithType, err error) {
@@ -416,11 +441,18 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 	maxTokens := opt.MaxTokens
 	curTokens := 0
 	outTokenIds := []int64{}
+	seqLength := int64(1)
 	for {
+		if curTokens == 0 {
+			// s := inputs[0].GetShape()
+			// fmt.Printf("s: %v\n", s)
+			seqLength = inputs[0].GetShape()[1]
+			// fmt.Printf("seqLength: %v\n", seqLength)
+		}
 		if curTokens == 1 {
 			lastIdx := len(inputs) - 1
 			// log
-			fmt.Println("lastIdx", lastIdx, "curTokens", curTokens)
+			// fmt.Println("lastIdx", lastIdx, "curTokens", curTokens)
 
 			// replace the last item of inputs with bool false
 			s := inputs[lastIdx].GetShape()
@@ -437,61 +469,128 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 		curTokens += 1
 		// fmt.Printf("curTokens: %d\n", curTokens)
 		// fmt.Printf("inputs: %v\n", inputs)
+		// for i := 0; i < len(inputs); i++ {
+		// 	fmt.Printf("inputs[%d]: %v\n", i, inputs[i].GetShape())
+		// }
 		outputs, err = s.Run(inputs)
 		if err != nil {
 			return nil, err
 		}
-		// greedily calculate argmax(outputs[0],dim=2)
-		// outputs[0].Tensor
-		// replace inputs[0] with outputs[0] argmax result
 		data := inputs[0].GetData().([]int64)
 		logits := outputs[0].GetData().([]float32)
-		// calculate argmax(logits) using temperature
-
+		logitsShape := outputs[0].GetShape()
+		// fmt.Printf("logitsShape: %v\n", logitsShape)
 		logs := make([]float64, len(logits))
 		for i, v := range logits {
 			logs[i] = float64(v) / opt.Temperature
 		}
-
-		logs = Softmax(logs)
-		// sort logs by value max to min
-		topPLogs, topPLogsI := TakeTopP(logs, opt.TopP)
-		// fmt.Printf("topPLogs: %v %v\n", topPLogs[0], topPLogs[1])
-		// fmt.Printf("len(topPLogs): %v\n", len(topPLogs))
-		// fmt.Printf("topPLogsI: %v\n", topPLogsI[0])
-
-		sampledIndex := RandomSelect(topPLogs)
-		// fmt.Printf("sampledIndex: %d\n", sampledIndex)
-		tokenId := topPLogsI[sampledIndex]
-
-		// max := logits[0]
-		// maxIndex := 0
-		// for i, v := range logits {
-		// 	if v > max {
-		// 		max = v
-		// 		maxIndex = i
-		// 	}
-		// }
-		outTokenIds = append(outTokenIds, int64(tokenId))
-		// fmt.Printf("tokenId: %d\n", tokenId)
-		if tokenId == opt.EOSTokenID {
-			break
+		// first token is always the same
+		if curTokens == 1 {
+			outTokenIds = append(outTokenIds, data...)
 		}
-		if curTokens >= int(maxTokens-1) {
-			break
+
+		if seqLength > 1 {
+			// find Softmax of logs along dim=1
+			// change logs to multi-dim array according to logitsShape
+			logsT := Reshape(logs, logitsShape[1:]) // remove first dim
+			i := seqLength - 1
+			logsT[i] = Softmax(logsT[i])
+			topPLogsT, topPLogsTI := TakeTopP(logsT[i], opt.TopP)
+			sampledIndex := RandomSelect(topPLogsT)
+			tokenId := topPLogsTI[sampledIndex]
+			outTokenIds = append(outTokenIds, int64(tokenId))
+			if tokenId == opt.EOSTokenID {
+				break
+			}
+			if curTokens >= int(maxTokens-1) {
+				break
+			}
+			seqLength = 1
+			// seqLength = 1
+			// append data tp outTokenIds
+
+			// replace tokenId to inputs[0]
+			newData := []int64{outTokenIds[len(outTokenIds)-1]}
+			s := []int64{1, 1}
+			tensor, err := NewTensor(s, newData)
+			if err != nil {
+				return nil, err
+			}
+			inputs[0].Destroy()
+			inputs[0] = &TensorWithType{
+				Tensor:     tensor,
+				TensorType: "int64",
+			}
+
+			// fmt.Printf("NEW inputs[0]: %v\n", inputs[0].GetShape())
+			// fmt.Printf("NEW inputs[1]: %v\n", inputs[1].GetShape())
+
+		} else {
+			logs = Softmax(logs)
+			// greedily calculate argmax(outputs[0],dim=2)
+			// outputs[0].Tensor
+			// replace inputs[0] with outputs[0] argmax result
+			// calculate argmax(logits) using temperature
+			// sort logs by value max to min
+			topPLogs, topPLogsI := TakeTopP(logs, opt.TopP)
+			// fmt.Printf("topPLogs: %v %v\n", topPLogs[0], topPLogs[1])
+			// fmt.Printf("len(topPLogs): %v\n", len(topPLogs))
+			// fmt.Printf("topPLogsI: %v\n", topPLogsI[0])
+
+			sampledIndex := RandomSelect(topPLogs)
+			// fmt.Printf("sampledIndex: %d\n", sampledIndex)
+			tokenId := topPLogsI[sampledIndex]
+
+			// max := logits[0]
+			// maxIndex := 0
+			// for i, v := range logits {
+			// 	if v > max {
+			// 		max = v
+			// 		maxIndex = i
+			// 	}
+			// }
+			outTokenIds = append(outTokenIds, int64(tokenId))
+			// fmt.Printf("tokenId: %d\n", tokenId)
+			if tokenId == opt.EOSTokenID {
+				break
+			}
+			if curTokens >= int(maxTokens-1) {
+				break
+			}
+			// replace tokenId to inputs[0]
+			data[0] = int64(tokenId)
+			s := inputs[0].GetShape()
+			tensor, err := NewTensor(s, data)
+			if err != nil {
+				return nil, err
+			}
+			inputs[0].Destroy()
+			inputs[0] = &TensorWithType{
+				Tensor:     tensor,
+				TensorType: "int64",
+			}
 		}
-		data[0] = int64(tokenId)
-		s := inputs[0].GetShape()
-		tensor, err := NewTensor(s, data)
-		if err != nil {
-			return nil, err
-		}
-		inputs[0].Destroy()
-		inputs[0] = &TensorWithType{
-			Tensor:     tensor,
-			TensorType: "int64",
+
+		if opt.AttentionMaskIndex > -1 {
+			k := int(opt.AttentionMaskIndex)
+			attData := inputs[k].GetData().([]int64)
+			attShape := inputs[k].GetShape()
+			newAttData := append(attData, int64(1))
+			newAttShape := []int64{attShape[0], attShape[1] + 1}
+			attTensor, err := NewTensor(newAttShape, newAttData)
+			if err != nil {
+				return nil, err
+			}
+			inputs[k].Destroy()
+			inputs[k] = &TensorWithType{
+				Tensor:     attTensor,
+				TensorType: "int64",
+			}
 		}
 		// release and replace inputs[opt.ReplacementIndexes] with outputs[1:end]
+		// ozs := outputs[0].GetShape()
+		// fmt.Printf("outputs[%d].GetShape(): %v\n", 0, ozs)
+
 		j := 1
 		for _, i := range opt.ReplacementIndexes {
 			// os := outputs[j].GetShape()
