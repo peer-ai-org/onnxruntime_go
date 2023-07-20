@@ -920,6 +920,109 @@ func TestV3GetShapes(t *testing.T) {
 	}
 }
 
+func TestRunV3GenMerged(t *testing.T) {
+	InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
+
+	// Create input and output tensors
+	// inputs := parseInputsJSON("test_data/example_network_results.json", t)
+	ins := make([]*TensorWithType, 15)
+	in0, e := NewTensor(Shape{1, 1},
+		makeRange[int64](0, int(1)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[0] = &TensorWithType{
+		Tensor:     in0,
+		TensorType: "int64",
+	}
+	defer in0.Destroy()
+	in1, e := NewTensor(Shape{1, 1},
+		makeRange[int64](0, int(1)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[1] = &TensorWithType{
+		Tensor:     in1,
+		TensorType: "int64",
+	}
+	defer in1.Destroy()
+	for i := 2; i < 14; i++ {
+		inputTensor, e := NewTensor(Shape{1, 12, 1, 64},
+			makeRange[float32](0, int(12*64)))
+		if e != nil {
+			t.Logf("Failed creating input tensor: %s\n", e)
+			t.FailNow()
+		}
+		defer inputTensor.Destroy()
+		ins[i] = &TensorWithType{
+			Tensor:     inputTensor,
+			TensorType: "float32",
+		}
+	}
+	inLast, e := NewTensor(Shape{1},
+		makeRange[bool](0, 1))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[14] = &TensorWithType{
+		Tensor:     inLast,
+		TensorType: "bool",
+	}
+	defer inLast.Destroy()
+	//
+
+	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+	// if e != nil {
+	// 	t.Logf("Failed creating output tensor: %s\n", e)
+	// 	t.FailNow()
+	// }
+	// defer outputTensor.Destroy()
+
+	// Set up and run the session.
+	session, e := NewSessionV3("test_data/decoder_model_merged_quantized.onnx")
+	if e != nil {
+		t.Logf("Failed creating session: %s\n", e)
+		t.FailNow()
+	}
+	defer session.Destroy()
+
+	outs, e := session.RunGen(ins, &RunV3GenOptions{
+		MaxTokens:           128,
+		EOSTokenID:          50256,
+		TopP:                0.1,
+		Temperature:         0.5,
+		AttentionMaskIndex:  -1,
+		UseCacheBranchIndex: -1,
+		// 2 - 13
+		ReplacementIndexes: []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+	})
+	if e != nil {
+		t.Logf("Failed to run the session: %s\n", e)
+		t.FailNow()
+	}
+
+	outIds := outs[0].GetData().([]int64)
+	// defer outs[0].Destroy()
+	// fmt.Printf("outIds: %v\n", len(outIds))
+	// correct := []int64{0, 220, 50256}
+	// len(outIds) == 128
+	e = intsEqual([]int64{int64(len(outIds))}, []int64{int64(128)})
+	if e != nil {
+		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+		t.FailNow()
+	}
+}
+
 func TestRunV3Gen(t *testing.T) {
 	InitONNXEnv(false)
 	defer func() {
@@ -991,6 +1094,7 @@ func TestRunV3Gen(t *testing.T) {
 		TopP:               0.1,
 		Temperature:        0.5,
 		AttentionMaskIndex: -1,
+		SeparateDecoder:    true,
 	})
 	if e != nil {
 		t.Logf("Failed to run the session: %s\n", e)
@@ -1007,7 +1111,6 @@ func TestRunV3Gen(t *testing.T) {
 		t.FailNow()
 	}
 }
-
 func TestRunV3GenCoreML(t *testing.T) {
 	InitONNXEnv(false)
 	defer func() {
@@ -1079,6 +1182,7 @@ func TestRunV3GenCoreML(t *testing.T) {
 		TopP:               0.1,
 		Temperature:        0.5,
 		AttentionMaskIndex: -1,
+		SeparateDecoder:    true,
 	})
 	if e != nil {
 		t.Logf("Failed to run the session: %s\n", e)

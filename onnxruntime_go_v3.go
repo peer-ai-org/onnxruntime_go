@@ -489,7 +489,7 @@ func (s *SessionV3) RunMergedDecoder(inputs []*TensorWithType, opt *RunV3GenOpti
 		// fmt.Printf("curTokens: %d\n", curTokens)
 		// fmt.Printf("inputs: %v\n", inputs)
 		// for i := 0; i < len(inputs); i++ {
-		// 	fmt.Printf("inputs[%d]: %v\n", i, inputs[i].GetShape())
+		// 	fmt.Printf("inputs[%d]: %v (%v)\n", i, inputs[i].GetShape(), inputs[i].TensorType)
 		// }
 		outputs, err = s.Run(inputs)
 		if err != nil {
