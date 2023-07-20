@@ -545,226 +545,204 @@ func makeRange[T TensorData](min, max int) []T {
 	return a
 }
 
-func TestLoadExternalFormatOnnx(t *testing.T) {
-	InitONNXEnv(false)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
+// func TestExampleNetworkV2(t *testing.T) {
+// 	InitONNXEnv(false)
+// 	defer func() {
+// 		e := DestroyEnvironment()
+// 		if e != nil {
+// 			t.Logf("Error cleaning up environment: %s\n", e)
+// 			t.FailNow()
+// 		}
+// 	}()
 
-	// Create input and output tensors
-	inputs := parseExternalInputsJSON("test_data/example_network_results_external.json", t)
-	inputShape := Shape(inputs.InputShape)
-	inputTensor, e := NewTensor(inputShape,
-		makeRange[float32](0, int(inputShape.FlattenedSize())))
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
+// 	// Create input and output tensors
+// 	inputs := parseInputsJSON("test_data/example_network_results.json", t)
+// 	inputTensor, e := NewTensor(Shape(inputs.InputShape),
+// 		inputs.FlattenedInput)
+// 	if e != nil {
+// 		t.Logf("Failed creating input tensor: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	defer inputTensor.Destroy()
+// 	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+// 	if e != nil {
+// 		t.Logf("Failed creating output tensor: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	defer outputTensor.Destroy()
 
-	inputTShape := Shape(inputs.TShape)
-	inputTensorT, e := NewTensor(inputTShape,
-		inputs.FlattenedT)
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensorT.Destroy()
+// 	// Set up and run the session.
+// 	session, e := NewSessionV2("test_data/example_network.onnx")
+// 	if e != nil {
+// 		t.Logf("Failed creating session: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	defer session.Destroy()
+// 	e = session.Run([]*TensorWithType{{
+// 		Tensor:     inputTensor,
+// 		TensorType: "float32",
+// 	}}, []*TensorWithType{{
+// 		Tensor:     outputTensor,
+// 		TensorType: "float32",
+// 	}})
+// 	if e != nil {
+// 		t.Logf("Failed to run the session: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
+// 	if e != nil {
+// 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+// 		t.FailNow()
+// 	}
+// }
 
-	inputEncShape := Shape(inputs.EncoderHiddenStatesShape)
-	inputTensorEnc, e := NewTensor(inputEncShape,
-		makeRange[float32](0, int(inputEncShape.FlattenedSize())))
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensorEnc.Destroy()
+// func TestExampleNetworkV2WithNull(t *testing.T) {
+// 	InitONNXEnv(false)
+// 	defer func() {
+// 		e := DestroyEnvironment()
+// 		if e != nil {
+// 			t.Logf("Error cleaning up environment: %s\n", e)
+// 			t.FailNow()
+// 		}
+// 	}()
 
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
+// 	// Create input and output tensors
+// 	inputs := parseInputsJSON("test_data/example_network_results.json", t)
+// 	inputTensor, e := NewTensor(Shape(inputs.InputShape),
+// 		inputs.FlattenedInput)
+// 	if e != nil {
+// 		t.Logf("Failed creating input tensor: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	defer inputTensor.Destroy()
+// 	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+// 	// if e != nil {
+// 	// 	t.Logf("Failed creating output tensor: %s\n", e)
+// 	// 	t.FailNow()
+// 	// }
+// 	// defer outputTensor.Destroy()
 
-	if _, err := os.Stat("test_data/unet/model.onnx"); err != nil {
-		return
-	}
+// 	// Set up and run the session.
+// 	session, e := NewSessionV2("test_data/example_network.onnx")
+// 	if e != nil {
+// 		t.Logf("Failed creating session: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	defer session.Destroy()
 
-	// Set up and run the session.
-	session, e := NewSessionWithPathWithType("test_data/unet/model.onnx",
-		[]string{"sample", "timestep", "encoder_hidden_states"}, []string{"out_sample"},
-		[]*TensorWithType{{
-			Tensor:     inputTensor,
-			TensorType: "float32",
-		}, {
-			Tensor:     inputTensorT,
-			TensorType: "float32",
-		}, {
-			Tensor:     inputTensorEnc,
-			TensorType: "float32",
-		}}, []*TensorWithType{{
-			Tensor:     outputTensor,
-			TensorType: "float32",
-		}})
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run()
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	fmt.Printf("input1 %+v\n", inputTensor.GetData()[0:10])
-	fmt.Printf("output1 %+v\n", outputTensor.GetData()[0:10])
-	// e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
-	// if e != nil {
-	// 	t.Logf("The neural network didn't produce the correct result: %s\n", e)
-	// 	t.FailNow()
-	// }
-}
+// 	outs := []*TensorWithType{{
+// 		Tensor:     nil,
+// 		TensorType: "float32",
+// 	}}
 
-func TestLoadExternalFormatOnnxTextEncoder(t *testing.T) {
-	InitONNXEnv(false)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
+// 	e = session.RunV2([]*TensorWithType{{
+// 		Tensor:     inputTensor,
+// 		TensorType: "float32",
+// 	}}, outs)
+// 	if e != nil {
+// 		t.Logf("Failed to run the session: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	e = floatsEqual(outs[0].GetData().([]float32), inputs.FlattenedOutput)
+// 	if e != nil {
+// 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+// 		t.FailNow()
+// 	}
+// }
 
-	// Create input and output tensors
-	// inputs := parseExternalInputsJSON("test_data/example_network_results_external.json", t)
-	inputShape := Shape([]int64{1, 77})
-	inputTensor, e := NewTensor(inputShape,
-		makeRange[int32](0, int(inputShape.FlattenedSize())))
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
+// func TestRunV2Gen(t *testing.T) {
+// 	InitONNXEnv(false)
+// 	defer func() {
+// 		e := DestroyEnvironment()
+// 		if e != nil {
+// 			t.Logf("Error cleaning up environment: %s\n", e)
+// 			t.FailNow()
+// 		}
+// 	}()
 
-	outputShape := Shape([]int64{1, 77, 768})
-	outputTensor, e := NewEmptyTensor[float32](outputShape)
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
+// 	// Create input and output tensors
+// 	// inputs := parseInputsJSON("test_data/example_network_results.json", t)
+// 	ins := make([]*TensorWithType, 26)
+// 	in0, e := NewTensor(Shape{1, 1},
+// 		makeRange[int64](0, int(1)))
+// 	if e != nil {
+// 		t.Logf("Failed creating input tensor: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	ins[0] = &TensorWithType{
+// 		Tensor:     in0,
+// 		TensorType: "int64",
+// 	}
+// 	defer in0.Destroy()
+// 	in1, e := NewTensor(Shape{1, 32, 768},
+// 		makeRange[float32](0, int(32*768)))
+// 	if e != nil {
+// 		t.Logf("Failed creating input tensor: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	ins[1] = &TensorWithType{
+// 		Tensor:     in1,
+// 		TensorType: "float32",
+// 	}
+// 	defer in1.Destroy()
+// 	// from 2 to 25
+// 	for i := 2; i < 26; i++ {
+// 		inputTensor, e := NewTensor(Shape{1, 12, 1, 64},
+// 			makeRange[float32](0, int(12*64)))
+// 		if e != nil {
+// 			t.Logf("Failed creating input tensor: %s\n", e)
+// 			t.FailNow()
+// 		}
+// 		defer inputTensor.Destroy()
+// 		ins[i] = &TensorWithType{
+// 			Tensor:     inputTensor,
+// 			TensorType: "float32",
+// 		}
+// 	}
 
-	outputShape2 := Shape([]int64{1, 768})
-	outputTensor2, e := NewEmptyTensor[float32](outputShape2)
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
+// 	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+// 	// if e != nil {
+// 	// 	t.Logf("Failed creating output tensor: %s\n", e)
+// 	// 	t.FailNow()
+// 	// }
+// 	// defer outputTensor.Destroy()
 
-	if _, err := os.Stat("test_data/text_encoder/model.onnx"); err != nil {
-		return
-	}
-	// Set up and run the session.
-	session, e := NewSessionWithPathWithType("test_data/text_encoder/model.onnx",
-		[]string{"input_ids"}, []string{"last_hidden_state", "pooler_output"},
-		[]*TensorWithType{{
-			Tensor:     inputTensor,
-			TensorType: "int32",
-		}}, []*TensorWithType{{
-			Tensor:     outputTensor,
-			TensorType: "float32",
-		}, {
-			Tensor:     outputTensor2,
-			TensorType: "float32",
-		}})
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run()
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	fmt.Printf("input2 %+v\n", inputTensor.GetData()[0:10])
-	fmt.Printf("output2 %+v\n", outputTensor.GetData()[0:10])
-	// e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
-	// if e != nil {
-	// 	t.Logf("The neural network didn't produce the correct result: %s\n", e)
-	// 	t.FailNow()
-	// }
-}
+// 	// Set up and run the session.
+// 	session, e := NewSessionV2("test_data/textgen.onnx")
+// 	if e != nil {
+// 		t.Logf("Failed creating session: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	defer session.Destroy()
 
-func TestLoadExternalFormatOnnxVAEDecoder(t *testing.T) {
-	InitONNXEnv(false)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
+// 	outs := make([]*TensorWithType, 25)
+// 	for i := 0; i < 25; i++ {
+// 		outs[i] = &TensorWithType{
+// 			Tensor:     nil,
+// 			TensorType: "float32",
+// 		}
+// 	}
+// 	e = session.RunV2Gen(ins, outs, &RunV2GenOptions{
+// 		MaxTokens:   1024,
+// 		EOSTokenID:  50256,
+// 		TopP:        1.0,
+// 		Temperature: 10,
+// 	})
+// 	if e != nil {
+// 		t.Logf("Failed to run the session: %s\n", e)
+// 		t.FailNow()
+// 	}
+// 	outIds := outs[0].GetData().([]int64)
+// 	// fmt.Printf("outIds: %v\n", outIds)
+// 	correct := []int64{int64(220), int64(50256)}
+// 	e = intsEqual(outIds, correct)
+// 	if e != nil {
+// 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+// 		t.FailNow()
+// 	}
+// }
 
-	// Create input and output tensors
-	// inputs := parseExternalInputsJSON("test_data/example_network_results_external.json", t)
-	inputShape := Shape([]int64{1, 4, 64, 64})
-	inputTensor, e := NewTensor(inputShape,
-		makeRange[float32](0, int(inputShape.FlattenedSize())))
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
-
-	outputShape := Shape([]int64{1, 3, 512, 512})
-	outputTensor, e := NewEmptyTensor[float32](outputShape)
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
-
-	if _, err := os.Stat("test_data/vae_decoder/model.onnx"); err != nil {
-		return
-	}
-
-	// Set up and run the session.
-	session, e := NewSessionWithPathWithType("test_data/vae_decoder/model.onnx",
-		[]string{"latent_sample"}, []string{"sample"},
-		[]*TensorWithType{{
-			Tensor:     inputTensor,
-			TensorType: "float32",
-		}}, []*TensorWithType{{
-			Tensor:     outputTensor,
-			TensorType: "float32",
-		}})
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run()
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	fmt.Printf("input3 %+v\n", inputTensor.GetData()[0:10])
-	fmt.Printf("output3 %+v\n", outputTensor.GetData()[0:10])
-	// e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
-	// if e != nil {
-	// 	t.Logf("The neural network didn't produce the correct result: %s\n", e)
-	// 	t.FailNow()
-	// }
-}
-
-func TestExampleNetwork(t *testing.T) {
+func TestExampleNetworkV3(t *testing.T) {
 	InitONNXEnv(false)
 	defer func() {
 		e := DestroyEnvironment()
@@ -783,262 +761,6 @@ func TestExampleNetwork(t *testing.T) {
 		t.FailNow()
 	}
 	defer inputTensor.Destroy()
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
-
-	// Set up and run the session.
-	session, e := NewSessionWithPathWithType("test_data/example_network.onnx",
-		[]string{"1x4 Input Vector"}, []string{"1x2 Output Vector"},
-		[]*TensorWithType{{
-			Tensor:     inputTensor,
-			TensorType: "float32",
-		}}, []*TensorWithType{{
-			Tensor:     outputTensor,
-			TensorType: "float32",
-		}})
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run()
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
-	if e != nil {
-		t.Logf("The neural network didn't produce the correct result: %s\n", e)
-		t.FailNow()
-	}
-}
-
-func TestExampleNetworkV2(t *testing.T) {
-	InitONNXEnv(false)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
-
-	// Create input and output tensors
-	inputs := parseInputsJSON("test_data/example_network_results.json", t)
-	inputTensor, e := NewTensor(Shape(inputs.InputShape),
-		inputs.FlattenedInput)
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
-
-	// Set up and run the session.
-	session, e := NewSessionV2("test_data/example_network.onnx")
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run([]*TensorWithType{{
-		Tensor:     inputTensor,
-		TensorType: "float32",
-	}}, []*TensorWithType{{
-		Tensor:     outputTensor,
-		TensorType: "float32",
-	}})
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
-	if e != nil {
-		t.Logf("The neural network didn't produce the correct result: %s\n", e)
-		t.FailNow()
-	}
-}
-
-func TestExampleNetworkV2WithNull(t *testing.T) {
-	InitONNXEnv(false)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
-
-	// Create input and output tensors
-	inputs := parseInputsJSON("test_data/example_network_results.json", t)
-	inputTensor, e := NewTensor(Shape(inputs.InputShape),
-		inputs.FlattenedInput)
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
-	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	// if e != nil {
-	// 	t.Logf("Failed creating output tensor: %s\n", e)
-	// 	t.FailNow()
-	// }
-	// defer outputTensor.Destroy()
-
-	// Set up and run the session.
-	session, e := NewSessionV2("test_data/example_network.onnx")
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-
-	outs := []*TensorWithType{{
-		Tensor:     nil,
-		TensorType: "float32",
-	}}
-
-	e = session.RunV2([]*TensorWithType{{
-		Tensor:     inputTensor,
-		TensorType: "float32",
-	}}, outs)
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	e = floatsEqual(outs[0].GetData().([]float32), inputs.FlattenedOutput)
-	if e != nil {
-		t.Logf("The neural network didn't produce the correct result: %s\n", e)
-		t.FailNow()
-	}
-}
-
-func TestRunV2Gen(t *testing.T) {
-	InitONNXEnv(false)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
-
-	// Create input and output tensors
-	// inputs := parseInputsJSON("test_data/example_network_results.json", t)
-	ins := make([]*TensorWithType, 26)
-	in0, e := NewTensor(Shape{1, 1},
-		makeRange[int64](0, int(1)))
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	ins[0] = &TensorWithType{
-		Tensor:     in0,
-		TensorType: "int64",
-	}
-	defer in0.Destroy()
-	in1, e := NewTensor(Shape{1, 32, 768},
-		makeRange[float32](0, int(32*768)))
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	ins[1] = &TensorWithType{
-		Tensor:     in1,
-		TensorType: "float32",
-	}
-	defer in1.Destroy()
-	// from 2 to 25
-	for i := 2; i < 26; i++ {
-		inputTensor, e := NewTensor(Shape{1, 12, 1, 64},
-			makeRange[float32](0, int(12*64)))
-		if e != nil {
-			t.Logf("Failed creating input tensor: %s\n", e)
-			t.FailNow()
-		}
-		defer inputTensor.Destroy()
-		ins[i] = &TensorWithType{
-			Tensor:     inputTensor,
-			TensorType: "float32",
-		}
-	}
-
-	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	// if e != nil {
-	// 	t.Logf("Failed creating output tensor: %s\n", e)
-	// 	t.FailNow()
-	// }
-	// defer outputTensor.Destroy()
-
-	// Set up and run the session.
-	session, e := NewSessionV2("test_data/textgen.onnx")
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-
-	outs := make([]*TensorWithType, 25)
-	for i := 0; i < 25; i++ {
-		outs[i] = &TensorWithType{
-			Tensor:     nil,
-			TensorType: "float32",
-		}
-	}
-	e = session.RunV2Gen(ins, outs, &RunV2GenOptions{
-		MaxTokens:   1024,
-		EOSTokenID:  50256,
-		TopP:        1.0,
-		Temperature: 10,
-	})
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	outIds := outs[0].GetData().([]int64)
-	// fmt.Printf("outIds: %v\n", outIds)
-	correct := []int64{int64(220), int64(50256)}
-	e = intsEqual(outIds, correct)
-	if e != nil {
-		t.Logf("The neural network didn't produce the correct result: %s\n", e)
-		t.FailNow()
-	}
-}
-
-func TestExampleNetworkV3WithNull(t *testing.T) {
-	InitONNXEnv(false)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
-
-	// Create input and output tensors
-	inputs := parseInputsJSON("test_data/example_network_results.json", t)
-	inputTensor, e := NewTensor(Shape(inputs.InputShape),
-		inputs.FlattenedInput)
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
-	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	// if e != nil {
-	// 	t.Logf("Failed creating output tensor: %s\n", e)
-	// 	t.FailNow()
-	// }
-	// defer outputTensor.Destroy()
 
 	// Set up and run the session.
 	session, e := NewSessionV3("test_data/example_network.onnx")
@@ -1057,6 +779,49 @@ func TestExampleNetworkV3WithNull(t *testing.T) {
 		t.FailNow()
 	}
 	e = floatsEqual(outs[0].GetData().([]float32), inputs.FlattenedOutput)
+	if e != nil {
+		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+		t.FailNow()
+	}
+}
+
+func TestExampleNetworkV3CoreML(t *testing.T) {
+	InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
+
+	// Create input and output tensors
+	inputs := parseInputsJSON("test_data/example_network_results.json", t)
+	inputTensor, e := NewTensor(Shape(inputs.InputShape),
+		inputs.FlattenedInput)
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	defer inputTensor.Destroy()
+
+	// Set up and run the session.
+	session, e := NewSessionV3("test_data/example_network.onnx", "coreml")
+	if e != nil {
+		t.Logf("Failed creating session: %s\n", e)
+		t.FailNow()
+	}
+	defer session.Destroy()
+
+	outs, e := session.Run([]*TensorWithType{{
+		Tensor:     inputTensor,
+		TensorType: "float32",
+	}})
+	if e != nil {
+		t.Logf("Failed to run the session: %s\n", e)
+		t.FailNow()
+	}
+	e = floatsEqual(outs[0].GetData().([]float32), inputs.CoreMLFlattenedOutput)
 	if e != nil {
 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
 		t.FailNow()
@@ -1221,10 +986,11 @@ func TestRunV3Gen(t *testing.T) {
 	defer session.Destroy()
 
 	outs, e := session.RunGen(ins, &RunV3GenOptions{
-		MaxTokens:   128,
-		EOSTokenID:  50256,
-		TopP:        0.1,
-		Temperature: 0.5,
+		MaxTokens:          128,
+		EOSTokenID:         50256,
+		TopP:               0.1,
+		Temperature:        0.5,
+		AttentionMaskIndex: -1,
 	})
 	if e != nil {
 		t.Logf("Failed to run the session: %s\n", e)
@@ -1234,7 +1000,7 @@ func TestRunV3Gen(t *testing.T) {
 	outIds := outs[0].GetData().([]int64)
 	// defer outs[0].Destroy()
 	fmt.Printf("outIds: %v\n", outIds)
-	correct := []int64{int64(220), int64(50256)}
+	correct := []int64{int64(0), int64(220), int64(50256)}
 	e = intsEqual(outIds, correct)
 	if e != nil {
 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
@@ -1242,7 +1008,95 @@ func TestRunV3Gen(t *testing.T) {
 	}
 }
 
-func TestExampleNetworkV2CoreML(t *testing.T) {
+func TestRunV3GenCoreML(t *testing.T) {
+	InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
+
+	// Create input and output tensors
+	// inputs := parseInputsJSON("test_data/example_network_results.json", t)
+	ins := make([]*TensorWithType, 26)
+	in0, e := NewTensor(Shape{1, 1},
+		makeRange[int64](0, int(1)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[0] = &TensorWithType{
+		Tensor:     in0,
+		TensorType: "int64",
+	}
+	defer in0.Destroy()
+	in1, e := NewTensor(Shape{1, 32, 768},
+		makeRange[float32](0, int(32*768)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[1] = &TensorWithType{
+		Tensor:     in1,
+		TensorType: "float32",
+	}
+	defer in1.Destroy()
+	// from 2 to 25
+	for i := 2; i < 26; i++ {
+		inputTensor, e := NewTensor(Shape{1, 12, 1, 64},
+			makeRange[float32](0, int(12*64)))
+		if e != nil {
+			t.Logf("Failed creating input tensor: %s\n", e)
+			t.FailNow()
+		}
+		defer inputTensor.Destroy()
+		ins[i] = &TensorWithType{
+			Tensor:     inputTensor,
+			TensorType: "float32",
+		}
+	}
+
+	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+	// if e != nil {
+	// 	t.Logf("Failed creating output tensor: %s\n", e)
+	// 	t.FailNow()
+	// }
+	// defer outputTensor.Destroy()
+
+	// Set up and run the session.
+	session, e := NewSessionV3("test_data/textgen.onnx", "coreml")
+	if e != nil {
+		t.Logf("Failed creating session: %s\n", e)
+		t.FailNow()
+	}
+	defer session.Destroy()
+
+	outs, e := session.RunGen(ins, &RunV3GenOptions{
+		MaxTokens:          128,
+		EOSTokenID:         50256,
+		TopP:               0.1,
+		Temperature:        0.5,
+		AttentionMaskIndex: -1,
+	})
+	if e != nil {
+		t.Logf("Failed to run the session: %s\n", e)
+		t.FailNow()
+	}
+
+	outIds := outs[0].GetData().([]int64)
+	// defer outs[0].Destroy()
+	fmt.Printf("outIds: %v\n", outIds)
+	correct := []int64{int64(0), int64(220), int64(50256)}
+	e = intsEqual(outIds, correct)
+	if e != nil {
+		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+		t.FailNow()
+	}
+}
+
+func TestExampleNetworkV3CUDA(t *testing.T) {
 	InitONNXEnv(false)
 	defer func() {
 		e := DestroyEnvironment()
@@ -1261,194 +1115,31 @@ func TestExampleNetworkV2CoreML(t *testing.T) {
 		t.FailNow()
 	}
 	defer inputTensor.Destroy()
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
 
 	// Set up and run the session.
-	session, e := NewSessionV2("test_data/example_network.onnx", "coreml")
+	session, e := NewSessionV3("test_data/example_network.onnx", "cuda")
 	if e != nil {
 		t.Logf("Failed creating session: %s\n", e)
 		t.FailNow()
 	}
 	defer session.Destroy()
-	e = session.Run([]*TensorWithType{{
+
+	outs, e := session.Run([]*TensorWithType{{
 		Tensor:     inputTensor,
-		TensorType: "float32",
-	}}, []*TensorWithType{{
-		Tensor:     outputTensor,
 		TensorType: "float32",
 	}})
 	if e != nil {
 		t.Logf("Failed to run the session: %s\n", e)
 		t.FailNow()
 	}
-	e = floatsEqual(outputTensor.GetData(), inputs.CoreMLFlattenedOutput)
+	e = floatsEqual(outs[0].GetData().([]float32), inputs.FlattenedOutput)
 	if e != nil {
 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
 		t.FailNow()
 	}
 }
 
-func TestExampleNetworkV2CUDA(t *testing.T) {
-	InitONNXEnv(true)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
-
-	// Create input and output tensors
-	inputs := parseInputsJSON("test_data/example_network_results.json", t)
-	inputTensor, e := NewTensor(Shape(inputs.InputShape),
-		inputs.FlattenedInput)
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
-
-	// Set up and run the session.
-	session, e := NewSessionV2("test_data/example_network.onnx", "cuda", "0")
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run([]*TensorWithType{{
-		Tensor:     inputTensor,
-		TensorType: "float32",
-	}}, []*TensorWithType{{
-		Tensor:     outputTensor,
-		TensorType: "float32",
-	}})
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	e = floatsEqual(outputTensor.GetData(), inputs.CoreMLFlattenedOutput)
-	if e != nil {
-		t.Logf("The neural network didn't produce the correct result: %s\n", e)
-		t.FailNow()
-	}
-}
-
-func TestExampleNetworkV2TensorRT(t *testing.T) {
-	InitONNXEnv(true)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
-
-	// Create input and output tensors
-	inputs := parseInputsJSON("test_data/example_network_results.json", t)
-	inputTensor, e := NewTensor(Shape(inputs.InputShape),
-		inputs.FlattenedInput)
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
-
-	// Set up and run the session.
-	session, e := NewSessionV2("test_data/example_network.onnx", "tensorrt", "0", "1", "1")
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run([]*TensorWithType{{
-		Tensor:     inputTensor,
-		TensorType: "float32",
-	}}, []*TensorWithType{{
-		Tensor:     outputTensor,
-		TensorType: "float32",
-	}})
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	e = floatsEqual(outputTensor.GetData(), inputs.CoreMLFlattenedOutput)
-	if e != nil {
-		t.Logf("The neural network didn't produce the correct result: %s\n", e)
-		t.FailNow()
-	}
-}
-
-func TestExampleNetworkWithCUDA(t *testing.T) {
-	InitONNXEnv(true)
-	defer func() {
-		e := DestroyEnvironment()
-		if e != nil {
-			t.Logf("Error cleaning up environment: %s\n", e)
-			t.FailNow()
-		}
-	}()
-
-	// Create input and output tensors
-	inputs := parseInputsJSON("test_data/example_network_results.json", t)
-	inputTensor, e := NewTensor(Shape(inputs.InputShape),
-		inputs.FlattenedInput)
-	if e != nil {
-		t.Logf("Failed creating input tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer inputTensor.Destroy()
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
-
-	// Set up and run the session.
-	session, e := NewSessionWithPathWithTypeWithCUDA("test_data/example_network.onnx",
-		[]string{"1x4 Input Vector"}, []string{"1x2 Output Vector"},
-		[]*TensorWithType{{
-			Tensor:     inputTensor,
-			TensorType: "float32",
-		}}, []*TensorWithType{{
-			Tensor:     outputTensor,
-			TensorType: "float32",
-		}})
-	if e != nil {
-		t.Logf("Failed creating session: %s\n", e)
-		t.FailNow()
-	}
-	defer session.Destroy()
-	e = session.Run()
-	if e != nil {
-		t.Logf("Failed to run the session: %s\n", e)
-		t.FailNow()
-	}
-	e = floatsEqual(outputTensor.GetData(), inputs.FlattenedOutput)
-	if e != nil {
-		t.Logf("The neural network didn't produce the correct result: %s\n", e)
-		t.FailNow()
-	}
-}
-
-func TestExampleNetworkWithCoreML(t *testing.T) {
+func TestExampleNetworkV3TensorRT(t *testing.T) {
 	InitONNXEnv(false)
 	defer func() {
 		e := DestroyEnvironment()
@@ -1467,37 +1158,112 @@ func TestExampleNetworkWithCoreML(t *testing.T) {
 		t.FailNow()
 	}
 	defer inputTensor.Destroy()
-	outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
-	if e != nil {
-		t.Logf("Failed creating output tensor: %s\n", e)
-		t.FailNow()
-	}
-	defer outputTensor.Destroy()
 
 	// Set up and run the session.
-	session, e := NewSessionWithPathWithTypeWithCoreML("test_data/example_network.onnx",
-		[]string{"1x4 Input Vector"}, []string{"1x2 Output Vector"},
-		[]*TensorWithType{{
-			Tensor:     inputTensor,
-			TensorType: "float32",
-		}}, []*TensorWithType{{
-			Tensor:     outputTensor,
-			TensorType: "float32",
-		}})
+	session, e := NewSessionV3("test_data/example_network.onnx", "tensorrt")
 	if e != nil {
 		t.Logf("Failed creating session: %s\n", e)
 		t.FailNow()
 	}
 	defer session.Destroy()
-	e = session.Run()
+
+	outs, e := session.Run([]*TensorWithType{{
+		Tensor:     inputTensor,
+		TensorType: "float32",
+	}})
 	if e != nil {
 		t.Logf("Failed to run the session: %s\n", e)
 		t.FailNow()
 	}
-	// fmt.Printf("input4 %+v\n", inputTensor.GetData()[0:4])
-	// fmt.Printf("output4 %+v\n", outputTensor.GetData()[0:2])
-	// fmt.Printf("output4 %+v\n", inputs.FlattenedOutput[0:2])
-	e = floatsEqual(outputTensor.GetData(), inputs.CoreMLFlattenedOutput)
+	e = floatsEqual(outs[0].GetData().([]float32), inputs.FlattenedOutput)
+	if e != nil {
+		t.Logf("The neural network didn't produce the correct result: %s\n", e)
+		t.FailNow()
+	}
+}
+
+func TestRunV3GenCUDA(t *testing.T) {
+	InitONNXEnv(false)
+	defer func() {
+		e := DestroyEnvironment()
+		if e != nil {
+			t.Logf("Error cleaning up environment: %s\n", e)
+			t.FailNow()
+		}
+	}()
+
+	// Create input and output tensors
+	// inputs := parseInputsJSON("test_data/example_network_results.json", t)
+	ins := make([]*TensorWithType, 26)
+	in0, e := NewTensor(Shape{1, 1},
+		makeRange[int64](0, int(1)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[0] = &TensorWithType{
+		Tensor:     in0,
+		TensorType: "int64",
+	}
+	defer in0.Destroy()
+	in1, e := NewTensor(Shape{1, 32, 768},
+		makeRange[float32](0, int(32*768)))
+	if e != nil {
+		t.Logf("Failed creating input tensor: %s\n", e)
+		t.FailNow()
+	}
+	ins[1] = &TensorWithType{
+		Tensor:     in1,
+		TensorType: "float32",
+	}
+	defer in1.Destroy()
+	// from 2 to 25
+	for i := 2; i < 26; i++ {
+		inputTensor, e := NewTensor(Shape{1, 12, 1, 64},
+			makeRange[float32](0, int(12*64)))
+		if e != nil {
+			t.Logf("Failed creating input tensor: %s\n", e)
+			t.FailNow()
+		}
+		defer inputTensor.Destroy()
+		ins[i] = &TensorWithType{
+			Tensor:     inputTensor,
+			TensorType: "float32",
+		}
+	}
+
+	// outputTensor, e := NewEmptyTensor[float32](Shape(inputs.OutputShape))
+	// if e != nil {
+	// 	t.Logf("Failed creating output tensor: %s\n", e)
+	// 	t.FailNow()
+	// }
+	// defer outputTensor.Destroy()
+
+	// Set up and run the session.
+	session, e := NewSessionV3("test_data/textgen.onnx", "cuda")
+	if e != nil {
+		t.Logf("Failed creating session: %s\n", e)
+		t.FailNow()
+	}
+	defer session.Destroy()
+
+	outs, e := session.RunGen(ins, &RunV3GenOptions{
+		MaxTokens:          128,
+		EOSTokenID:         50256,
+		TopP:               0.1,
+		Temperature:        0.5,
+		AttentionMaskIndex: -1,
+	})
+	if e != nil {
+		t.Logf("Failed to run the session: %s\n", e)
+		t.FailNow()
+	}
+
+	outIds := outs[0].GetData().([]int64)
+	// defer outs[0].Destroy()
+	fmt.Printf("outIds: %v\n", outIds)
+	correct := []int64{int64(0), int64(220), int64(50256)}
+	e = intsEqual(outIds, correct)
 	if e != nil {
 		t.Logf("The neural network didn't produce the correct result: %s\n", e)
 		t.FailNow()

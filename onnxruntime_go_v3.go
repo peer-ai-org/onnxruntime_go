@@ -7,7 +7,7 @@ package onnxruntime_go
 import (
 	"fmt"
 	// "math"
-	"strconv"
+	// "strconv"
 	"unsafe"
 	// "strconv"
 	// "os"
@@ -66,94 +66,6 @@ func Reshape(data []float64, shape []int64) [][]float64 {
 	}
 
 	return result
-}
-
-func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
-	if !IsInitialized() {
-		return nil, NotInitializedError
-	}
-	var ortSession *C.OrtSession
-	modelPath := C.CString(path)
-	defer C.free(unsafe.Pointer(modelPath))
-
-	options := C.CreateSessionOptions()
-
-	if len(opts) > 0 {
-		// get device type from opts[0]
-		deviceType := opts[0]
-		if deviceType == "cuda" {
-			// convert opts[0] from string to int
-			deviceInt, err := strconv.Atoi(opts[1])
-			if err != nil {
-				deviceInt = 0
-			}
-			cudaDeviceId := C.int(deviceInt)
-			status := C.AppendExecutionProvider_CUDA(options, cudaDeviceId)
-			if status != nil {
-				return nil, fmt.Errorf("Error creating session: %w",
-					statusToError(status))
-			}
-		} else if deviceType == "tensorrt" {
-			deviceInt, err := strconv.Atoi(opts[1])
-			if err != nil {
-				deviceInt = 0
-			}
-			fp16Int, err := strconv.Atoi(opts[2])
-			if err != nil {
-				fp16Int = 0
-			}
-			int8Int, err := strconv.Atoi(opts[3])
-			if err != nil {
-				int8Int = 0
-			}
-			deviceId := C.int(deviceInt)
-			fp16 := C.int(fp16Int)
-			int8 := C.int(int8Int)
-			status := C.AppendExecutionProvider_TensorRT(options, deviceId, fp16, int8)
-			if status != nil {
-				return nil, fmt.Errorf("Error creating session: %w",
-					statusToError(status))
-			}
-		}
-	}
-
-	// fmt.Printf("ortAPIBase: %v\n", ortAPIBase)
-
-	status := C.CreateSessionPathWithOptions(modelPath, ortEnv, &ortSession, options)
-	if status != nil {
-		return nil, fmt.Errorf("Error creating session: %w",
-			statusToError(status))
-	}
-	cNames := C.GetIONames(ortSession)
-
-	// cInputNames := convertNames(inputNames)
-	// cOutputNames := convertNames(outputNames)
-	// inputOrtTensors := convertTensors(inputs)
-	// outputOrtTensors := convertTensors(outputs)
-
-	// convert cgo to c variables
-	// char** input_types;
-	// int** input_shapes;
-	// char*** input_symbolic_shapes;
-
-	return &SessionV3{
-		ortSession:           ortSession,
-		inputNames:           cNames.input_names,
-		outputNames:          cNames.output_names,
-		inputCount:           cNames.input_count,
-		outputCount:          cNames.output_count,
-		inputTypes:           cNames.input_types,
-		inputShapes:          cNames.input_shapes,
-		inputSymbolicShapes:  cNames.input_symbolic_shapes,
-		inputShapesCount:     cNames.input_shapes_count,
-		outputTypes:          cNames.output_types,
-		outputShapes:         cNames.output_shapes,
-		outputSymbolicShapes: cNames.output_symbolic_shapes,
-		outputShapesCount:    cNames.output_shapes_count,
-
-		// inputs:      inputOrtTensors,
-		// outputs:     outputOrtTensors,
-	}, nil
 }
 
 func convertCStrings(cStrings **C.char, count int) []string {
@@ -254,8 +166,8 @@ func (s *SessionV3) GetOutputShapes() (shapeTypes []ShapeType) {
 
 func (s *SessionV3) Run(inputs []*TensorWithType) (outputs []*TensorWithType, err error) {
 
-	s.inputs = convertTensors(inputs)
-	// s.outputs = convertTensors(outputs)
+	s.inputs = ConvertTensors(inputs)
+	// s.outputs = ConvertTensors(outputs)
 	// convert to int
 	outputCount := int(s.outputCount)
 	outputs = make([]*TensorWithType, outputCount)
@@ -394,54 +306,154 @@ func (s *SessionV3) Destroy() error {
 }
 
 type RunV3GenOptions struct {
-	MaxTokens          int
-	TopP               float64
-	Temperature        float64
-	EOSTokenID         int
-	ReplacementIndexes []int
-	AttentionMaskIndex int
+	MaxTokens           int
+	TopP                float64
+	Temperature         float64
+	EOSTokenID          int
+	ReplacementIndexes  []int
+	AttentionMaskIndex  int
+	UseCacheBranchIndex int
+	MergedDecoder       bool
 }
 
-func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outputs []*TensorWithType, err error) {
-	if opt == nil {
-		// default is to fill with array from 2 to len(inputs)
-		opt = &RunV3GenOptions{}
-	}
-	// opt.MaxTokens = 128
-	// opt.TopP = 0.9
-	// opt.Temperature = 1.0
-	// opt.EOSTokenID = 50256
-	// indexes := make([]int, len(inputs)-2)
-	// for i := 0; i < len(inputs)-2; i++ {
-	// 	indexes[i] = i + 2
-	// }
-	// opt.ReplacementIndexes = indexes
-	if opt.MaxTokens == 0 {
-		opt.MaxTokens = 128
-	}
-	if opt.TopP == 0 {
-		opt.TopP = 0.1
-	}
-	if opt.Temperature == 0 {
-		opt.Temperature = 1.0
-	}
-	if opt.EOSTokenID == 0 {
-		opt.EOSTokenID = 50256
-	}
-	if opt.ReplacementIndexes == nil {
-		indexes := make([]int, len(inputs)-2)
-		for i := 0; i < len(inputs)-2; i++ {
-			indexes[i] = i + 2
-		}
-		opt.ReplacementIndexes = indexes
-	}
-
-	// run the use_cache_branch == false first
-	// then run the use_cache_branch == true
+func (s *SessionV3) RunDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (outTokenIds []int64, err error) {
 	maxTokens := opt.MaxTokens
 	curTokens := 0
-	outTokenIds := []int64{}
 	seqLength := int64(1)
+	var outputs []*TensorWithType
+	for {
+		if curTokens == 0 {
+			seqLength = inputs[0].GetShape()[1]
+		}
+		curTokens += 1
+		// fmt.Printf("curTokens: %d\n", curTokens)
+		// fmt.Printf("inputs: %v\n", inputs)
+		// for i := 0; i < len(inputs); i++ {
+		// 	fmt.Printf("inputs[%d]: %v\n", i, inputs[i].GetShape())
+		// }
+		outputs, err = s.Run(inputs)
+		// fmt.Printf("outputs: %v\n", outputs)
+		// for i := 0; i < len(outputs); i++ {
+		// 	fmt.Printf("outputs[%d]: %v\n", i, outputs[i].GetShape())
+		// }
+		// fmt.Printf("err: %v\n", err)
+		if err != nil {
+			return nil, err
+		}
+		data := inputs[0].GetData().([]int64)
+		logits := outputs[0].GetData().([]float32)
+		logitsShape := outputs[0].GetShape()
+		logs := make([]float64, len(logits))
+		for i, v := range logits {
+			logs[i] = float64(v) / opt.Temperature
+		}
+		// first token is always the same
+		if curTokens == 1 {
+			outTokenIds = append(outTokenIds, data...)
+		}
+		if seqLength > 1 {
+			// find Softmax of logs along dim=1
+			// change logs to multi-dim array according to logitsShape
+			logsT := Reshape(logs, logitsShape[1:]) // remove first dim
+			i := seqLength - 1
+			logsT[i] = Softmax(logsT[i])
+			topPLogsT, topPLogsTI := TakeTopP(logsT[i], opt.TopP)
+			sampledIndex := RandomSelect(topPLogsT)
+			tokenId := topPLogsTI[sampledIndex]
+			outTokenIds = append(outTokenIds, int64(tokenId))
+			if tokenId == opt.EOSTokenID {
+				break
+			}
+			if curTokens >= int(maxTokens-1) {
+				break
+			}
+			seqLength = 1
+			// seqLength = 1
+			// append data tp outTokenIds
+
+			// replace tokenId to inputs[0]
+			newData := []int64{outTokenIds[len(outTokenIds)-1]}
+			s := []int64{1, 1}
+			tensor, err := NewTensor(s, newData)
+			if err != nil {
+				return nil, err
+			}
+			inputs[0].Destroy()
+			inputs[0] = &TensorWithType{
+				Tensor:     tensor,
+				TensorType: "int64",
+			}
+		} else {
+			logs = Softmax(logs)
+			topPLogs, topPLogsI := TakeTopP(logs, opt.TopP)
+			sampledIndex := RandomSelect(topPLogs)
+			tokenId := topPLogsI[sampledIndex]
+			outTokenIds = append(outTokenIds, int64(tokenId))
+			if tokenId == opt.EOSTokenID {
+				break
+			}
+			if curTokens >= int(maxTokens-1) {
+				break
+			}
+			// replace tokenId to inputs[0]
+			data[0] = int64(tokenId)
+			s := inputs[0].GetShape()
+			// fmt.Printf("s: %v\n", s)
+			tensor, err := NewTensor(s, data)
+			if err != nil {
+				return nil, err
+			}
+			inputs[0].Destroy()
+			inputs[0] = &TensorWithType{
+				Tensor:     tensor,
+				TensorType: "int64",
+			}
+		}
+		// fmt.Printf("opt.AttentionMaskIndex: %v\n", opt.AttentionMaskIndex)
+		if opt.AttentionMaskIndex > -1 {
+			k := int(opt.AttentionMaskIndex)
+			attData := inputs[k].GetData().([]int64)
+			attShape := inputs[k].GetShape()
+			newAttData := append(attData, int64(1))
+			newAttShape := []int64{attShape[0], attShape[1] + 1}
+			attTensor, err := NewTensor(newAttShape, newAttData)
+			if err != nil {
+				return nil, err
+			}
+			inputs[k].Destroy()
+			inputs[k] = &TensorWithType{
+				Tensor:     attTensor,
+				TensorType: "int64",
+			}
+		}
+		j := 1
+		for _, i := range opt.ReplacementIndexes {
+			if outputs[j].Tensor != nil {
+				inputs[i].Destroy()
+				inputs[i] = &TensorWithType{
+					Tensor:     outputs[j].Tensor,
+					TensorType: outputs[j].TensorType,
+				}
+			}
+			j += 1
+		}
+	}
+	// outputs[0].Destroy()
+	// outputs[0] = &TensorWithType{
+	// 	Tensor:     outT,
+	// 	TensorType: "int64",
+	// }
+	for j := 0; j < len(outputs); j++ {
+		outputs[j].Destroy()
+	}
+	return
+}
+
+func (s *SessionV3) RunMergedDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (outTokenIds []int64, err error) {
+	maxTokens := opt.MaxTokens
+	curTokens := 0
+	seqLength := int64(1)
+	var outputs []*TensorWithType
 	for {
 		if curTokens == 0 {
 			// s := inputs[0].GetShape()
@@ -450,7 +462,13 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 			// fmt.Printf("seqLength: %v\n", seqLength)
 		}
 		if curTokens == 1 {
-			lastIdx := len(inputs) - 1
+			var lastIdx int
+			if opt.UseCacheBranchIndex > -1 {
+				lastIdx = opt.UseCacheBranchIndex
+			} else {
+				lastIdx = len(inputs) - 1
+			}
+
 			// log
 			// fmt.Println("lastIdx", lastIdx, "curTokens", curTokens)
 
@@ -465,6 +483,7 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 				Tensor:     tensor,
 				TensorType: "bool",
 			}
+
 		}
 		curTokens += 1
 		// fmt.Printf("curTokens: %d\n", curTokens)
@@ -605,17 +624,68 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 			j += 1
 		}
 	}
-	outputs[0].Destroy()
+	// outputs[0].Destroy()
+	for j := 0; j < len(outputs); j++ {
+		outputs[j].Destroy()
+	}
+	return
+}
+
+func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outputs []*TensorWithType, err error) {
+	if opt == nil {
+		// default is to fill with array from 2 to len(inputs)
+		opt = &RunV3GenOptions{}
+	}
+	// opt.MaxTokens = 128
+	// opt.TopP = 0.9
+	// opt.Temperature = 1.0
+	// opt.EOSTokenID = 50256
+	// indexes := make([]int, len(inputs)-2)
+	// for i := 0; i < len(inputs)-2; i++ {
+	// 	indexes[i] = i + 2
+	// }
+	// opt.ReplacementIndexes = indexes
+	if opt.MaxTokens == 0 {
+		opt.MaxTokens = 128
+	}
+	if opt.TopP == 0 {
+		opt.TopP = 0.1
+	}
+	if opt.Temperature == 0 {
+		opt.Temperature = 1.0
+	}
+	if opt.EOSTokenID == 0 {
+		opt.EOSTokenID = 50256
+	}
+	if opt.ReplacementIndexes == nil {
+		indexes := make([]int, len(inputs)-2)
+		for i := 0; i < len(inputs)-2; i++ {
+			indexes[i] = i + 2
+		}
+		opt.ReplacementIndexes = indexes
+	}
+
+	// run the use_cache_branch == false first
+	// then run the use_cache_branch == true
+	var outTokenIds []int64
+	if opt.MergedDecoder {
+		outTokenIds, err = s.RunMergedDecoder(inputs, opt)
+	} else {
+		outTokenIds, err = s.RunDecoder(inputs, opt)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	outT, err := NewTensor(NewShape(1, int64(len(outTokenIds))), outTokenIds)
 	if err != nil {
 		return nil, err
 	}
-	outputs[0] = &TensorWithType{
+	outputs = append(outputs, &TensorWithType{
 		Tensor:     outT,
 		TensorType: "int64",
-	}
-	for j := 1; j < len(outputs); j++ {
-		outputs[j].Destroy()
-	}
+	})
+
 	return
 }

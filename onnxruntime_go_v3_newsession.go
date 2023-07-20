@@ -8,10 +8,13 @@ package onnxruntime_go
 
 import (
 	"fmt"
+	// "math"
 	"strconv"
+	"unsafe"
+	// "strconv"
 	// "os"
 	// "github.com/ebitengine/purego"
-	"unsafe"
+	// "unsafe"
 )
 
 /*
@@ -20,7 +23,7 @@ import (
 */
 import "C"
 
-func NewSessionV2(path string, opts ...string) (*SessionV2, error) {
+func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
 	if !IsInitialized() {
 		return nil, NotInitializedError
 	}
@@ -78,25 +81,32 @@ func NewSessionV2(path string, opts ...string) (*SessionV2, error) {
 	}
 	cNames := C.GetIONames(ortSession)
 
-	// cInputNames := convertNames(inputNames)
-	// cOutputNames := convertNames(outputNames)
-	// inputOrtTensors := convertTensors(inputs)
-	// outputOrtTensors := convertTensors(outputs)
+	// cInputNames := ConvertNames(inputNames)
+	// cOutputNames := ConvertNames(outputNames)
+	// inputOrtTensors := ConvertTensors(inputs)
+	// outputOrtTensors := ConvertTensors(outputs)
 
-	return &SessionV2{
-		ortSession:  ortSession,
-		inputNames:  cNames.input_names,
-		outputNames: cNames.output_names,
-		inputCount:  cNames.input_count,
-		outputCount: cNames.output_count,
+	// convert cgo to c variables
+	// char** input_types;
+	// int** input_shapes;
+	// char*** input_symbolic_shapes;
+
+	return &SessionV3{
+		ortSession:           ortSession,
+		inputNames:           cNames.input_names,
+		outputNames:          cNames.output_names,
+		inputCount:           cNames.input_count,
+		outputCount:          cNames.output_count,
+		inputTypes:           cNames.input_types,
+		inputShapes:          cNames.input_shapes,
+		inputSymbolicShapes:  cNames.input_symbolic_shapes,
+		inputShapesCount:     cNames.input_shapes_count,
+		outputTypes:          cNames.output_types,
+		outputShapes:         cNames.output_shapes,
+		outputSymbolicShapes: cNames.output_symbolic_shapes,
+		outputShapesCount:    cNames.output_shapes_count,
+
 		// inputs:      inputOrtTensors,
 		// outputs:     outputOrtTensors,
 	}, nil
-}
-
-// The same as NewSession, but takes a slice of bytes containing the .onnx
-// network rather than a file path.
-func NewSessionWithPathWithTypeWithCoreML(path string, inputNames,
-	outputNames []string, inputs []*TensorWithType, outputs []*TensorWithType, opts ...string) (*Session, error) {
-	panic("unimplemented")
 }
