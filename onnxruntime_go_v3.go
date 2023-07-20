@@ -313,7 +313,7 @@ type RunV3GenOptions struct {
 	ReplacementIndexes  []int
 	AttentionMaskIndex  int
 	UseCacheBranchIndex int
-	MergedDecoder       bool
+	SeparateDecoder     bool
 }
 
 func (s *SessionV3) RunDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (outTokenIds []int64, err error) {
@@ -668,10 +668,10 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 	// run the use_cache_branch == false first
 	// then run the use_cache_branch == true
 	var outTokenIds []int64
-	if opt.MergedDecoder {
-		outTokenIds, err = s.RunMergedDecoder(inputs, opt)
-	} else {
+	if opt.SeparateDecoder {
 		outTokenIds, err = s.RunDecoder(inputs, opt)
+	} else {
+		outTokenIds, err = s.RunMergedDecoder(inputs, opt)
 	}
 
 	if err != nil {
