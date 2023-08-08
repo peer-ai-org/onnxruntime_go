@@ -319,6 +319,7 @@ func (s *SessionV3) Destroy() error {
 
 type RunV3GenOptions struct {
 	MaxTokens           int
+	MaxNewTokens        int
 	TopP                float64
 	Temperature         float64
 	EOSTokenID          int
@@ -330,12 +331,15 @@ type RunV3GenOptions struct {
 
 func (s *SessionV3) RunDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (outTokenIds []int64, err error) {
 	maxTokens := opt.MaxTokens
+	maxNewTokens := opt.MaxNewTokens
 	curTokens := 0
+	var startTokens int
 	seqLength := int64(1)
 	var outputs []*TensorWithType
 	for {
 		if curTokens == 0 {
 			seqLength = inputs[0].GetShape()[1]
+			startTokens = int(seqLength)
 		}
 		curTokens += 1
 		// fmt.Printf("curTokens: %d\n", curTokens)
@@ -376,7 +380,10 @@ func (s *SessionV3) RunDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (
 			if tokenId == opt.EOSTokenID {
 				break
 			}
-			if curTokens >= int(maxTokens-1) {
+			if curTokens >= int(maxNewTokens) {
+				break
+			}
+			if curTokens+startTokens >= int(maxTokens) {
 				break
 			}
 			seqLength = 1
@@ -404,7 +411,10 @@ func (s *SessionV3) RunDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (
 			if tokenId == opt.EOSTokenID {
 				break
 			}
-			if curTokens >= int(maxTokens-1) {
+			if curTokens >= int(maxNewTokens) {
+				break
+			}
+			if curTokens+startTokens >= int(maxTokens) {
 				break
 			}
 			// replace tokenId to inputs[0]
@@ -463,7 +473,9 @@ func (s *SessionV3) RunDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (
 
 func (s *SessionV3) RunMergedDecoder(inputs []*TensorWithType, opt *RunV3GenOptions) (outTokenIds []int64, err error) {
 	maxTokens := opt.MaxTokens
+	maxNewTokens := opt.MaxNewTokens
 	curTokens := 0
+	var startTokens int
 	seqLength := int64(1)
 	var outputs []*TensorWithType
 	for {
@@ -471,6 +483,7 @@ func (s *SessionV3) RunMergedDecoder(inputs []*TensorWithType, opt *RunV3GenOpti
 			// s := inputs[0].GetShape()
 			// fmt.Printf("s: %v\n", s)
 			seqLength = inputs[0].GetShape()[1]
+			startTokens = int(seqLength)
 			// fmt.Printf("seqLength: %v\n", seqLength)
 		}
 		if curTokens == 1 {
@@ -533,7 +546,10 @@ func (s *SessionV3) RunMergedDecoder(inputs []*TensorWithType, opt *RunV3GenOpti
 			if tokenId == opt.EOSTokenID {
 				break
 			}
-			if curTokens >= int(maxTokens-1) {
+			if curTokens >= int(maxNewTokens) {
+				break
+			}
+			if curTokens+startTokens >= int(maxTokens) {
 				break
 			}
 			seqLength = 1
@@ -585,7 +601,10 @@ func (s *SessionV3) RunMergedDecoder(inputs []*TensorWithType, opt *RunV3GenOpti
 			if tokenId == opt.EOSTokenID {
 				break
 			}
-			if curTokens >= int(maxTokens-1) {
+			if curTokens >= int(maxNewTokens) {
+				break
+			}
+			if curTokens+startTokens >= int(maxTokens) {
 				break
 			}
 			// replace tokenId to inputs[0]
@@ -659,6 +678,9 @@ func (s *SessionV3) RunGen(inputs []*TensorWithType, opt *RunV3GenOptions) (outp
 	// opt.ReplacementIndexes = indexes
 	if opt.MaxTokens == 0 {
 		opt.MaxTokens = 128
+	}
+	if opt.MaxNewTokens == 0 {
+		opt.MaxNewTokens = 128
 	}
 	if opt.TopP == 0 {
 		opt.TopP = 0.1

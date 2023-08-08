@@ -933,8 +933,8 @@ func TestRunV3GenMerged(t *testing.T) {
 	// Create input and output tensors
 	// inputs := parseInputsJSON("test_data/example_network_results.json", t)
 	ins := make([]*TensorWithType, 15)
-	in0, e := NewTensor(Shape{1, 1},
-		makeRange[int64](0, int(1)))
+	in0, e := NewTensor(Shape{1, 5},
+		makeRange[int64](0, int(5)))
 	if e != nil {
 		t.Logf("Failed creating input tensor: %s\n", e)
 		t.FailNow()
@@ -956,8 +956,8 @@ func TestRunV3GenMerged(t *testing.T) {
 	}
 	defer in1.Destroy()
 	for i := 2; i < 14; i++ {
-		inputTensor, e := NewTensor(Shape{1, 12, 1, 64},
-			makeRange[float32](0, int(12*64)))
+		inputTensor, e := NewTensor(Shape{1, 12, 5, 64},
+			makeRange[float32](0, int(12*64*5)))
 		if e != nil {
 			t.Logf("Failed creating input tensor: %s\n", e)
 			t.FailNow()
@@ -997,6 +997,7 @@ func TestRunV3GenMerged(t *testing.T) {
 	defer session.Destroy()
 
 	outs, e := session.RunGen(ins, &RunV3GenOptions{
+		MaxNewTokens:        128,
 		MaxTokens:           128,
 		EOSTokenID:          50256,
 		TopP:                0.1,
@@ -1089,7 +1090,7 @@ func TestRunV3Gen(t *testing.T) {
 	defer session.Destroy()
 
 	outs, e := session.RunGen(ins, &RunV3GenOptions{
-		MaxTokens:          128,
+		MaxTokens:          3,
 		EOSTokenID:         50256,
 		TopP:               0.1,
 		Temperature:        0.5,
@@ -1103,7 +1104,7 @@ func TestRunV3Gen(t *testing.T) {
 
 	outIds := outs[0].GetData().([]int64)
 	// defer outs[0].Destroy()
-	fmt.Printf("outIds: %v\n", outIds)
+	// fmt.Printf("outIds: %v\n", outIds)
 	correct := []int64{int64(0), int64(220), int64(50256)}
 	e = intsEqual(outIds, correct)
 	if e != nil {
