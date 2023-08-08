@@ -258,6 +258,10 @@ func (t *Tensor[_]) Destroy() error {
 // Returns the slice containing the tensor's underlying data. The contents of
 // the slice can be read or written to get or set the tensor's contents.
 func (t *Tensor[T]) GetData() []T {
+	status := C.GetTensorMutableData(t.ortValue, unsafe.Pointer(&t.data[0]))
+	if status != nil {
+		panic(fmt.Errorf("failed to get tensor data: %v", status))
+	}
 	return t.data
 }
 
@@ -426,10 +430,11 @@ func ConvertNames(names []string) []*C.char {
 }
 
 func GetTensor[T TensorData](value *C.OrtValue, elementCount int64, data []T, shape []int64) (*Tensor[T], error) {
-	status := C.GetTensorMutableData(value, unsafe.Pointer(&data[0]))
-	if status != nil {
-		return nil, fmt.Errorf("error getting data: %w", statusToError(status))
-	}
+	// do this lazily instead
+	// status := C.GetTensorMutableData(value, unsafe.Pointer(&data[0]))
+	// if status != nil {
+	// 	return nil, fmt.Errorf("error getting data: %w", statusToError(status))
+	// }
 	return &Tensor[T]{
 		data:     data[0:elementCount],
 		shape:    shape,
