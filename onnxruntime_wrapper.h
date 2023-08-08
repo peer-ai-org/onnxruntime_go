@@ -120,6 +120,9 @@ OrtStatus *CreateSession(void *model_data, size_t model_data_length,
 OrtStatus *RunOrtSession(OrtSession *session,
   OrtValue **inputs, char **input_names, int input_count,
   OrtValue **outputs, char **output_names, int output_count);
+OrtStatus *RunOrtSessionIOCUDA(OrtSession *session,
+  OrtValue **inputs, char **input_names, int input_count,
+  OrtValue **outputs, char **output_names, int output_count, int cuda_device_id);
 
 // Wraps ort_api->ReleaseSession
 void ReleaseOrtSession(OrtSession *session);

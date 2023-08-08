@@ -42,10 +42,13 @@ func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
 	defer C.free(unsafe.Pointer(modelPath))
 
 	options := C.CreateSessionOptions()
+	var deviceInt int
+	var deviceType string
+	var err error
 
 	if len(opts) > 0 {
 		// get device type from opts[0]
-		deviceType := opts[0]
+		deviceType = opts[0]
 		if deviceType == "coreml" {
 
 			cFunctionName := C.CString("OrtSessionOptionsAppendExecutionProvider_CoreML")
@@ -55,36 +58,58 @@ func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
 
 			// SetupCoreMLExecutionProvider(options)
 		} else if deviceType == "cuda" {
-			// convert opts[0] from string to int
-			deviceInt, err := strconv.Atoi(opts[1])
-			if err != nil {
-				deviceInt = 0
-			}
-			cudaDeviceId := C.int(deviceInt)
-			status := C.AppendExecutionProvider_CUDA(options, cudaDeviceId)
-			if status != nil {
-				return nil, fmt.Errorf("Error creating session: %w",
-					statusToError(status))
-			}
-		} else if deviceType == "tensorrt" {
-			deviceInt, err := strconv.Atoi(opts[1])
+			// append tensorrt first
+			deviceInt, err = strconv.Atoi(opts[1])
 			if err != nil {
 				deviceInt = 0
 			}
 			fp16Int, err := strconv.Atoi(opts[2])
 			if err != nil {
-				fp16Int = 0
+				fp16Int = 1
 			}
 			int8Int, err := strconv.Atoi(opts[3])
 			if err != nil {
-				int8Int = 0
+				int8Int = 1
 			}
 			deviceId := C.int(deviceInt)
 			fp16 := C.int(fp16Int)
 			int8 := C.int(int8Int)
 			status := C.AppendExecutionProvider_TensorRT(options, deviceId, fp16, int8)
 			if status != nil {
-				return nil, fmt.Errorf("Error creating session: %w",
+				return nil, fmt.Errorf("error creating session: %w",
+					statusToError(status))
+			}
+
+			// convert opts[0] from string to int
+			deviceInt, err = strconv.Atoi(opts[1])
+			if err != nil {
+				deviceInt = 0
+			}
+			cudaDeviceId := C.int(deviceInt)
+			status = C.AppendExecutionProvider_CUDA(options, cudaDeviceId)
+			if status != nil {
+				return nil, fmt.Errorf("error creating session: %w",
+					statusToError(status))
+			}
+		} else if deviceType == "tensorrt" {
+			deviceInt, err = strconv.Atoi(opts[1])
+			if err != nil {
+				deviceInt = 0
+			}
+			fp16Int, err := strconv.Atoi(opts[2])
+			if err != nil {
+				fp16Int = 1
+			}
+			int8Int, err := strconv.Atoi(opts[3])
+			if err != nil {
+				int8Int = 1
+			}
+			deviceId := C.int(deviceInt)
+			fp16 := C.int(fp16Int)
+			int8 := C.int(int8Int)
+			status := C.AppendExecutionProvider_TensorRT(options, deviceId, fp16, int8)
+			if status != nil {
+				return nil, fmt.Errorf("error creating session: %w",
 					statusToError(status))
 			}
 		}
@@ -123,6 +148,9 @@ func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
 		outputShapes:         cNames.output_shapes,
 		outputSymbolicShapes: cNames.output_symbolic_shapes,
 		outputShapesCount:    cNames.output_shapes_count,
+
+		deviceType: deviceType,
+		deviceId:   deviceInt,
 
 		// inputs:      inputOrtTensors,
 		// outputs:     outputOrtTensors,

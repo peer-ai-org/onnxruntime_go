@@ -40,6 +40,9 @@ type SessionV3 struct {
 	outputSymbolicShapes ***C.char
 	outputShapesCount    *C.int64_t
 
+	deviceType string
+	deviceId   int
+
 	// We only actually keep around the OrtValue pointers from the tensors.
 	inputs  []*C.OrtValue
 	outputs []*C.OrtValue
@@ -178,11 +181,20 @@ func (s *SessionV3) Run(inputs []*TensorWithType) (outputs []*TensorWithType, er
 	// fmt.Print("outputCount: ", s.outputCount, "\n")
 	// fmt.Printf("inputNames: %v\n", s.inputNames)
 	// fmt.Printf("outputNames: %v\n", s.outputNames)
-
-	status := C.RunOrtSession(s.ortSession, &s.inputs[0], s.inputNames,
-		s.inputCount, &s.outputs[0], s.outputNames, s.outputCount)
-	if status != nil {
-		return nil, fmt.Errorf("error running network: %w", statusToError(status))
+	// if cuda call RunOrtSessionIOCUDA instead
+	var status *C.OrtStatus
+	if s.deviceType == "cuda" {
+		status = C.RunOrtSessionIOCUDA(s.ortSession, &s.inputs[0], s.inputNames,
+			s.inputCount, &s.outputs[0], s.outputNames, s.outputCount, C.int(s.deviceId))
+		if status != nil {
+			return nil, fmt.Errorf("error running network: %w", statusToError(status))
+		}
+	} else {
+		status = C.RunOrtSession(s.ortSession, &s.inputs[0], s.inputNames,
+			s.inputCount, &s.outputs[0], s.outputNames, s.outputCount)
+		if status != nil {
+			return nil, fmt.Errorf("error running network: %w", statusToError(status))
+		}
 	}
 
 	for i := 0; i < outputCount; i++ {

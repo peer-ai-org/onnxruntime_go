@@ -885,14 +885,47 @@ OrtStatus *RunOrtSession(OrtSession *session,
   return status;
 }
 
-OrtStatus *RunOrtSessionV2(OrtSession *session,
+OrtStatus *RunOrtSessionIOCUDA(OrtSession *session,
                            OrtValue **inputs, char **input_names, int input_count,
-                           OrtValue **outputs, char **output_names, int output_count)
+                           OrtValue **outputs, char **output_names, int output_count, int cuda_device_id)
 {
   OrtStatus *status = NULL;
-  status = ort_api->Run(session, NULL, (const char *const *)input_names,
-                        (const OrtValue *const *)inputs, input_count,
-                        (const char *const *)output_names, output_count, outputs);
+  OrtIoBinding* io_binding;
+  status = ort_api->CreateIoBinding(session, &io_binding);
+  if (status) {
+    return status;
+    }
+
+  for (int i = 0; i < input_count; i++)
+  {
+    status = ort_api->BindInput(io_binding, input_names[i], inputs[i]);
+    if (status) {
+      ort_api->ReleaseIoBinding(io_binding);
+      return status;
+    }
+  }
+
+  OrtMemoryInfo* memory_info;
+  // status = ort_api->CreateMemoryInfo("Cpu", OrtDeviceAllocator, 0, OrtMemTypeDefault, &memory_info);
+  status = ort_api->CreateMemoryInfo("Cuda", OrtDeviceAllocator, cuda_device_id, OrtMemTypeDefault, &memory_info);
+  if (status) {
+    ort_api->ReleaseIoBinding(io_binding);
+    return status;
+  }
+
+  for (int i = 0; i < output_count; i++)
+  {    
+    status = ort_api->BindOutputToDevice(io_binding, output_names[i], memory_info);
+    if (status) {
+      ort_api->ReleaseIoBinding(io_binding);
+      ort_api->ReleaseMemoryInfo(memory_info);
+      return status;
+    }
+  }
+
+  status = ort_api->RunWithBinding(session, NULL, io_binding);
+  ort_api->ReleaseIoBinding(io_binding);
+  ort_api->ReleaseMemoryInfo(memory_info);
   return status;
   // if (status) return status;
   // size_t numOutputs;
