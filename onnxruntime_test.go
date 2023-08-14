@@ -196,7 +196,7 @@ func InitONNXEnv(cuda bool) error {
 	var name string
 	GOOS := runtime.GOOS
 	// GOOS = "linux"
-	version := "1.14.1"
+	version := "1.15.1"
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

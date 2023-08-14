@@ -28,10 +28,20 @@ typedef void (*AppendOptionsFunction)(OrtSessionOptions *options, uint32_t flags
 // Since Go can't call C function pointers directly, we just use this helper
 // when calling GetApiBase
 void CallAppendOptionsFunction(void *fn, OrtSessionOptions *options) {
-	((AppendOptionsFunction) fn)(options, 0);
+	((AppendOptionsFunction) fn)(options, 2); // COREML_FLAG_ENABLE_ON_SUBGRAPH
 }
 */
 import "C"
+
+// /**
+//    * Use only the CPU, disables the GPU and Apple Neural Engine. Only recommended for developer
+//    * usage as it significantly impacts performance.
+//    */
+// CPU_ONLY(1), // COREML_FLAG_USE_CPU_ONLY(0x001)
+// /** Enables CoreML on subgraphs. */
+// ENABLE_ON_SUBGRAPH(2), // COREML_FLAG_ENABLE_ON_SUBGRAPH(0x002)
+// /** Only enable usage of CoreML if the device has an Apple Neural Engine. */
+// ONLY_ENABLE_DEVICE_WITH_ANE(4); // COREML_FLAG_ONLY_ENABLE_DEVICE_WITH_ANE(0x004),
 
 func NewSessionV3(path string, opts ...string) (*SessionV3, error) {
 	if !IsInitialized() {
