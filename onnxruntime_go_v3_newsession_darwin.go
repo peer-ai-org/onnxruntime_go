@@ -28,7 +28,7 @@ typedef void (*AppendOptionsFunction)(OrtSessionOptions *options, uint32_t flags
 // Since Go can't call C function pointers directly, we just use this helper
 // when calling GetApiBase
 void CallAppendOptionsFunction(void *fn, OrtSessionOptions *options) {
-	((AppendOptionsFunction) fn)(options, 3); // COREML_FLAG_ENABLE_ON_SUBGRAPH
+	((AppendOptionsFunction) fn)(options, 2); // COREML_FLAG_ENABLE_ON_SUBGRAPH
 }
 */
 import "C"
